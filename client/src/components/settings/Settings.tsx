@@ -19,7 +19,6 @@ import {
   User,
   X,
   Sparkle,
-  ShieldStar,
   Cloud,
 } from '@phosphor-icons/react';
 import { call } from '../../calls/manager';
@@ -51,10 +50,10 @@ import { Avatar, Button, Slider, Switch, TextField } from '../ui';
 import { keepsAnimation, pickImage } from '../modals/ImageCrop';
 import { BackgroundPicker } from './BackgroundPicker';
 import { Row, Section } from './parts';
-import { ServerAdminTab } from './ServerAdmin';
+import { AppBrandSection } from './AppBrand';
 import { MyStorageTab } from './MyStorage';
 
-type Tab = 'account' | 'profile' | 'storage' | 'perks' | 'appearance' | 'voice' | 'notifications' | 'emojis' | 'sounds' | 'server' | 'app';
+type Tab = 'account' | 'profile' | 'storage' | 'perks' | 'appearance' | 'voice' | 'notifications' | 'emojis' | 'sounds' | 'app';
 
 const NAV: { group: string; items: { id: Tab; label: string; icon: React.ReactNode; admin?: boolean }[] }[] = [
   {
@@ -79,7 +78,6 @@ const NAV: { group: string; items: { id: Tab; label: string; icon: React.ReactNo
     items: [
       { id: 'emojis', label: 'Photo Emojis', icon: <Smiley size={18} /> },
       { id: 'sounds', label: 'Soundboard', icon: <MusicNotes size={18} /> },
-      { id: 'server', label: 'Server Admin', icon: <ShieldStar size={18} />, admin: true },
       { id: 'app', label: 'App & Connection', icon: <DesktopTower size={18} /> },
     ],
   },
@@ -147,7 +145,6 @@ export function SettingsModal({ tab: initial, onClose }: { tab?: Tab; onClose: (
           {tab === 'notifications' && <NotificationsTab />}
           {tab === 'emojis' && <EmojisTab />}
           {tab === 'sounds' && <SoundsTab />}
-          {tab === 'server' && <ServerAdminTab />}
           {tab === 'app' && <AppTab />}
         </div>
       </main>
@@ -490,6 +487,7 @@ function AppearanceTab() {
         <Slider value={fontSize} min={13} max={19} step={1} onChange={(v) => ui.setPrefs({ fontSize: v })} label="Chat text size" />
       </Section>
       <BackgroundPicker />
+      <AppBrandSection />
     </>
   );
 }

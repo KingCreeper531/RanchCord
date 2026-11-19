@@ -209,47 +209,6 @@ export interface Bootstrap {
   instance: Instance;
 }
 
-/** Server admin: settings that aren't public. */
-export interface ServerSettings {
-  klipyKey: string;
-  klipyKeyFromEnv: boolean;
-  klipyFilter: 'off' | 'low' | 'medium' | 'high';
-  maxUploadMb: number;
-}
-
-export type ShrinkLevel = 'gentle' | 'strong' | 'extreme';
-
-/** Server admin: where uploads are kept and how old ones get shrunk. */
-export interface StorageInfo {
-  storage: {
-    mode: 'local' | 'cloud';
-    endpoint: string;
-    region: string;
-    bucket: string;
-    accessKeyId: string;
-    secretSet: boolean;
-    publicUrl: string;
-    connected: boolean;
-    local: { bytes: number; files: number };
-    waiting: number;
-    uploaded: number;
-    pendingDeletes: number;
-    lastError: string | null;
-    lastErrorAt: number | null;
-  };
-  shrink: {
-    days: number;
-    level: ShrinkLevel;
-    images: boolean;
-    videos: boolean;
-    running: boolean;
-    current: string | null;
-    lastRun: number | null;
-    lastError: string | null;
-  };
-  uploads: { files: number; bytes: number; shrunk: number; saved: number };
-}
-
 /** Your own storage (an S3-compatible bucket) that the files you send go to. */
 export interface MyStorage {
   linked: boolean;

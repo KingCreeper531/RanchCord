@@ -2377,25 +2377,9 @@
   color: #fff;
 }
 
-/* ================= settings: server admin ================= */
-.field-eye {
-  display: grid;
-  place-items: center;
-  color: var(--text-3);
-}
+/* ================= settings: storage forms ================= */
 
-.field-eye:hover {
-  color: var(--text-1);
-}
 
-.storage-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border-radius: var(--r-lg);
-  background: var(--bg-3);
-}
 
 .storage-pair {
   display: grid;
@@ -2403,52 +2387,12 @@
   gap: 12px;
 }
 
-.storage-advanced {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--text-3);
-}
 
-.storage-advanced:hover {
-  color: var(--text-1);
-}
 
-.storage-advanced svg {
-  transition: transform var(--dur-1) var(--ease-out);
-}
 
-.storage-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-}
 
-.storage-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 12px 14px;
-  border-radius: var(--r-md);
-  background: var(--bg-3);
-}
 
-.storage-stats strong {
-  font-size: 18px;
-  font-weight: 750;
-}
 
-.storage-stats span {
-  overflow: hidden;
-  font-size: 12.5px;
-  color: var(--text-3);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .storage-error {
   display: flex;

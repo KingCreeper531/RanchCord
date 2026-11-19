@@ -72,7 +72,7 @@ npm run build --prefix client
 say "Settings (server/.env)"
 if [[ ! -f "$ENV_FILE" ]]; then
   umask 077
-  printf '# RanchCord server settings. Most of these can also be changed in the app: Settings > Server Admin.\nPORT=%s\n' "$PORT" >"$ENV_FILE"
+  printf '# RanchCord server settings. After changing one, run: sudo systemctl restart ranchcord\nPORT=%s\n' "$PORT" >"$ENV_FILE"
   umask 022
 fi
 DOMAIN="${RANCHCORD_DOMAIN:-$(env_get PUBLIC_URL)}"
@@ -85,7 +85,7 @@ DOMAIN="${DOMAIN#http://}"
 DOMAIN="${DOMAIN%%/*}"
 if [[ -n "$DOMAIN" ]]; then env_set PUBLIC_URL "https://$DOMAIN"; fi
 if [[ -z "$(env_get KLIPY_API_KEY)" ]]; then
-  KLIPY="${KLIPY_API_KEY:-$(ask 'KLIPY key for GIFs (Enter to skip, you can add it in the app later)')}"
+  KLIPY="${KLIPY_API_KEY:-$(ask 'KLIPY key for GIFs (Enter to skip, you can add KLIPY_API_KEY to server/.env later)')}"
   if [[ -n "$KLIPY" ]]; then env_set KLIPY_API_KEY "$KLIPY"; fi
 fi
 if ! grep -q '^SIGNUP_CODE=' "$ENV_FILE"; then

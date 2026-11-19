@@ -1,6 +1,6 @@
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, ServerSettings, Sound, StorageInfo, UploadTicket, User } from '../types';
+import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, UploadTicket, User } from '../types';
 import { ApiError, api, errorMessage, putToUrl, setToken, upload } from './api';
 import { expandEmojiShortcodes } from './emoji';
 import { imageSize, videoSize } from './image';
@@ -566,54 +566,6 @@ export async function setMemberHasRole(groupId: string, userId: string, roleId: 
 
 export async function setEveryonePermissions(groupId: string, everyonePermissions: number) {
   data.updateGroup(await api.patch(`/api/groups/${groupId}`, { everyonePermissions }));
-}
-
-/* ---------- branding (server admin) ---------- */
-
-export async function setAppName(name: string) {
-  data.setInstance(await api.patch<Instance>('/api/instance', { name }));
-}
-
-export async function uploadAppLogo(blob: Blob, filename: string) {
-  const form = new FormData();
-  form.append('file', blob, filename);
-  data.setInstance(await upload<Instance>('/api/instance/logo', form));
-}
-
-export async function removeAppLogo() {
-  data.setInstance(await api.del<Instance>('/api/instance/logo'));
-}
-
-/* ---------- server admin: GIFs, uploads, storage ---------- */
-
-export function getServerSettings() {
-  return api.get<ServerSettings>('/api/instance/settings');
-}
-
-export async function saveServerSettings(patch: Partial<{ klipyKey: string; klipyFilter: ServerSettings['klipyFilter']; maxUploadMb: number }>) {
-  data.setInstance(await api.patch<Instance>('/api/instance', patch));
-}
-
-export function getStorage() {
-  return api.get<StorageInfo>('/api/instance/storage');
-}
-
-export function saveStorage(body: {
-  mode?: 'local' | 'cloud';
-  endpoint?: string;
-  region?: string;
-  bucket?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  publicUrl?: string;
-  shrinkDays?: number;
-  shrinkLevel?: StorageInfo['shrink']['level'];
-}) {
-  return api.patch<StorageInfo>('/api/instance/storage', body);
-}
-
-export function shrinkNow() {
-  return api.post<StorageInfo>('/api/instance/storage/shrink');
 }
 
 /* ---------- personal background ---------- */

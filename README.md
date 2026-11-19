@@ -47,16 +47,21 @@ journalctl -u ranchcord -f             # live log
 bash ~/ranchcord/deploy/pi/update.sh   # update right now
 ```
 
-## 2. Settings the admin can change in the app
+## 2. Server settings
 
-**Settings → Server Admin**:
+They live in `~/ranchcord/server/.env` on the Pi. Change a line, then run `sudo systemctl restart ranchcord`.
 
-- App name and logo
-- KLIPY key and content filter (filter is **off** by default)
-- Biggest file someone can send (**50 MB** by default)
-- Where profile pictures, emojis and sounds are kept (the Pi, or a cloud bucket to save SD card space)
-- **Shrinking old uploads**: after 30 days (you choose), photos become small WebP images and videos and audio are
-  re-encoded to a fraction of the size. Old messages keep working.
+| Setting | What it does |
+| --- | --- |
+| `KLIPY_API_KEY` | turns on GIFs and stickers |
+| `KLIPY_CONTENT_FILTER` | `off` (the default), `low`, `medium` or `high` |
+| `MAX_UPLOAD_MB` | biggest file someone can send (**50** by default) |
+| `SIGNUP_CODE` | a code friends must type to make an account (empty: anyone with the address can join) |
+| `SHRINK_AFTER_DAYS` | after this many days (**30** by default, `0` turns it off), photos become small WebP images and videos and audio are re-encoded to a fraction of the size. Old messages keep working |
+| `SHRINK_LEVEL` | how hard to shrink: `gentle`, `strong` (the default) or `extreme` |
+| `STORAGE=s3` with `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | keeps profile pictures, emojis and sounds in a cloud bucket instead of on the SD card |
+
+Everyone can give the app their own name and icon in **Settings → Appearance**. It only changes it for them, on that device.
 
 ## 3. Everyone links their own storage (to send files)
 

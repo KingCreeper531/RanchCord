@@ -208,7 +208,7 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
     return (
       <EmptyState
         title={kind === 'gifs' ? 'GIFs are not set up yet' : 'Stickers are not set up yet'}
-        body="Whoever runs this server needs to add a free KLIPY API key in Settings → Server Admin."
+        body="Whoever runs this server needs to add a free KLIPY API key to its settings (KLIPY_API_KEY in server/.env)."
       />
     );
   }
