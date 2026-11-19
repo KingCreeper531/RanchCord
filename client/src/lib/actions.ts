@@ -482,14 +482,15 @@ export async function joinInvite(code: string) {
   return g;
 }
 
-export async function createChannel(groupId: string, name: string, type: 'text' | 'voice') {
-  const c = await api.post<Channel>(`/api/groups/${groupId}/channels`, { name, type });
+/** With `categoryId` left out, the server puts it in the category that already holds that kind of channel. */
+export async function createChannel(groupId: string, name: string, type: 'text' | 'voice', categoryId?: string | null) {
+  const c = await api.post<Channel>(`/api/groups/${groupId}/channels`, { name, type, categoryId });
   data.upsertChannel(c);
   if (type === 'text') ui.navigate({ kind: 'group', groupId, channelId: c.id });
   return c;
 }
 
-export async function updateChannel(channelId: string, patch: { name?: string; topic?: string }) {
+export async function updateChannel(channelId: string, patch: { name?: string; topic?: string; categoryId?: string | null }) {
   data.upsertChannel(await api.patch<Channel>(`/api/channels/${channelId}`, patch));
 }
 

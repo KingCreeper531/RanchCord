@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Channel, CustomEmoji, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Presence, ReadState, SelfUser, Sound, User, VoiceState } from '../types';
+import type { ApiGroup, Channel, CustomEmoji, GroupLayout, GroupMeta, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Presence, ReadState, SelfUser, Sound, User, VoiceState } from '../types';
 import { REL } from '../types';
 import { ackChannel, logout, refreshBootstrap } from './actions';
 import { getToken } from './api';
@@ -165,7 +165,8 @@ export function connectSocket() {
   s.on('dm:close', (e: { id: string }) => data.closeDm(e.id));
 
   s.on('group:create', (g: ApiGroup) => data.addGroup(g));
-  s.on('group:update', (g: { id: string; name: string; icon: string | null; ownerId: string; everyonePermissions?: number }) => data.updateGroup(g));
+  s.on('group:update', (g: GroupMeta) => data.updateGroup(g));
+  s.on('group:layout', (e: GroupLayout) => data.applyLayout(e));
   s.on('group:roles', (e: { groupId: string; roles: GroupRole[] }) => data.setRoles(e.groupId, e.roles));
   s.on('instance:update', (i: Instance) => data.setInstance(i));
   s.on('favorites:update', (list: KlipyEmbed[]) => data.setFavorites(list));

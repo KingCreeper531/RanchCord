@@ -1,6 +1,9 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
   CaretDown,
+  FolderSimplePlus,
   ChatCircleText,
   Gear,
   Hash,
@@ -31,14 +34,16 @@ import { useShallow } from 'zustand/react/shallow';
 import { call } from '../calls/manager';
 import { ackChannel, askToNukeDm, closeDm, deleteChannel, leaveGroup, updateProfile } from '../lib/actions';
 import { formatFriendCode } from '../lib/format';
-import { canShareScreen } from '../lib/platform';
+import { errorMessage } from '../lib/api';
+import { channelLayout, deleteCategory, moveChannelToCategory, saveLayout } from '../lib/groupAdmin';
+import { canShareScreen, isMobileDevice } from '../lib/platform';
 import { EmojiText } from '../lib/twemoji';
 import { PERM, can, memberColor } from '../lib/perms';
 import { useCall } from '../store/call';
 import { channelLabel, dmRecipient, isUnread, mentionCount, pendingIncoming, sortedDmIds, useData, displayNameIn } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ChosenStatus } from '../types';
-import { Avatar, IconButton, PresenceDot, Tooltip, openMenu, presenceLabel } from './ui';
+import type { ChannelCategory, ChosenStatus } from '../types';
+import { Avatar, IconButton, PresenceDot, Tooltip, openMenu, presenceLabel, type MenuItem } from './ui';
 
 export function markGroupRead(groupId: string) {
   const s = useData.getState();
@@ -196,7 +201,79 @@ function VoiceMember({
   );
 }
 
-const ChannelRow = memo(function ChannelRow({ channelId, groupId, canManage }: { channelId: string; groupId: string; canManage: boolean }) {
+/* ---------------- group channels: categories, and dragging to rearrange ---------------- */
+
+type DropWhere = 'before' | 'after' | 'inside';
+type DragTarget = { kind: 'channel' | 'category'; id: string };
+
+/** Drag-and-drop handlers for the channel list (mouse only; on touch, use the menus to move things). */
+interface ChannelDnd {
+  start(target: DragTarget, e: React.DragEvent): void;
+  over(target: DragTarget, e: React.DragEvent): void;
+  leave(id: string): void;
+  drop(target: DragTarget, e: React.DragEvent): void;
+  end(): void;
+}
+
+const NO_CATEGORIES: ChannelCategory[] = [];
+const COLLAPSED_KEY = 'rc.collapsedCategories';
+
+function readCollapsed(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Which categories you folded away. Remembered on this device only. */
+function useCollapsed() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        /* still folds for this visit */
+      }
+      return next;
+    });
+  }, []);
+  return [collapsed, toggle] as const;
+}
+
+const showError = (err: unknown) => ui.toast(errorMessage(err), 'error');
+
+/** Moves a channel one step up or down inside its category (for touch screens, where there's no dragging). */
+function nudgeChannel(groupId: string, channelId: string, step: -1 | 1) {
+  const layout = channelLayout(groupId);
+  const i = layout.channels.findIndex((c) => c.id === channelId);
+  if (i === -1) return;
+  const cat = layout.channels[i].categoryId;
+  let j = i + step;
+  while (j >= 0 && j < layout.channels.length && layout.channels[j].categoryId !== cat) j += step;
+  if (j < 0 || j >= layout.channels.length) return;
+  const channels = [...layout.channels];
+  [channels[i], channels[j]] = [channels[j], channels[i]];
+  void saveLayout(groupId, layout.categories, channels).catch(showError);
+}
+
+const ChannelRow = memo(function ChannelRow({
+  channelId,
+  groupId,
+  canManage,
+  dnd,
+  dropWhere,
+}: {
+  channelId: string;
+  groupId: string;
+  canManage: boolean;
+  dnd: ChannelDnd | null;
+  dropWhere: DropWhere | null;
+}) {
   const channel = useData((s) => s.channels[channelId]);
   const unread = useData((s) => isUnread(s, channelId));
   const mentions = useData((s) => mentionCount(s, channelId));
@@ -210,14 +287,35 @@ const ChannelRow = memo(function ChannelRow({ channelId, groupId, canManage }: {
       if (!connected) void call.join(channelId);
     } else ui.navigate({ kind: 'group', groupId, channelId });
   };
+  const target: DragTarget = { kind: 'channel', id: channelId };
+  const moveMenu = (): MenuItem[] => {
+    const categories = useData.getState().groups[groupId]?.categories ?? [];
+    return [
+      { label: 'Move up', icon: <ArrowUp size={16} />, onSelect: () => nudgeChannel(groupId, channelId, -1) },
+      { label: 'Move down', icon: <ArrowDown size={16} />, onSelect: () => nudgeChannel(groupId, channelId, 1) },
+      { header: 'Move to category' },
+      ...categories.map((c) => ({
+        label: c.name,
+        checked: channel.categoryId === c.id,
+        onSelect: () => void moveChannelToCategory(channelId, c.id).catch(showError),
+      })),
+      { label: 'No category', checked: !channel.categoryId, onSelect: () => void moveChannelToCategory(channelId, null).catch(showError) },
+    ];
+  };
   return (
     <>
       <div
-        className={`side-row side-channel${active ? ' is-active' : ''}${unread && !active ? ' is-unread' : ''}${connected ? ' is-connected' : ''}`}
+        className={`side-row side-channel${active ? ' is-active' : ''}${unread && !active ? ' is-unread' : ''}${connected ? ' is-connected' : ''}${dropWhere ? ` is-drop-${dropWhere}` : ''}`}
         role="button"
         tabIndex={0}
         onClick={open}
         onKeyDown={(e) => e.key === 'Enter' && open()}
+        draggable={Boolean(dnd)}
+        onDragStart={dnd ? (e) => dnd.start(target, e) : undefined}
+        onDragOver={dnd ? (e) => dnd.over(target, e) : undefined}
+        onDragLeave={dnd ? () => dnd.leave(channelId) : undefined}
+        onDrop={dnd ? (e) => dnd.drop(target, e) : undefined}
+        onDragEnd={dnd?.end}
         onContextMenu={(e) => {
           e.preventDefault();
           openMenu(e, [
@@ -226,6 +324,8 @@ const ChannelRow = memo(function ChannelRow({ channelId, groupId, canManage }: {
               ? [
                   { separator: true as const },
                   { label: 'Edit channel', icon: <PencilSimple size={16} />, onSelect: () => ui.openModal('editChannel', { channelId }) },
+                  ...moveMenu(),
+                  { separator: true as const },
                   {
                     label: 'Delete channel',
                     danger: true,
@@ -268,19 +368,172 @@ const ChannelRow = memo(function ChannelRow({ channelId, groupId, canManage }: {
   );
 });
 
+const CategoryHeader = memo(function CategoryHeader({
+  groupId,
+  category,
+  collapsed,
+  onToggle,
+  canManage,
+  dnd,
+  dropWhere,
+}: {
+  groupId: string;
+  category: ChannelCategory;
+  collapsed: boolean;
+  onToggle: (id: string) => void;
+  canManage: boolean;
+  dnd: ChannelDnd | null;
+  dropWhere: DropWhere | null;
+}) {
+  const target: DragTarget = { kind: 'category', id: category.id };
+  const menu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    openMenu(e, [
+      { label: collapsed ? 'Expand category' : 'Collapse category', onSelect: () => onToggle(category.id) },
+      ...(canManage
+        ? [
+            { separator: true as const },
+            { label: 'Create channel', icon: <Plus size={16} />, onSelect: () => ui.openModal('createChannel', { groupId, categoryId: category.id }) },
+            { label: 'Rename category', icon: <PencilSimple size={16} />, onSelect: () => ui.openModal('category', { groupId, categoryId: category.id }) },
+            {
+              label: 'Delete category',
+              danger: true,
+              icon: <Trash size={16} />,
+              onSelect: () =>
+                ui.openModal('confirm', {
+                  title: `Delete the ${category.name} category?`,
+                  body: 'Its channels stay. They move to the top of the channel list.',
+                  confirmLabel: 'Delete category',
+                  danger: true,
+                  onConfirm: () => deleteCategory(groupId, category.id),
+                }),
+            },
+          ]
+        : []),
+    ]);
+  };
+  return (
+    <div
+      className={`side-section side-category${collapsed ? ' is-collapsed' : ''}${dropWhere ? ` is-drop-${dropWhere}` : ''}`}
+      draggable={Boolean(dnd)}
+      onDragStart={dnd ? (e) => dnd.start(target, e) : undefined}
+      onDragOver={dnd ? (e) => dnd.over(target, e) : undefined}
+      onDragLeave={dnd ? () => dnd.leave(category.id) : undefined}
+      onDrop={dnd ? (e) => dnd.drop(target, e) : undefined}
+      onDragEnd={dnd?.end}
+      onContextMenu={menu}
+    >
+      <button className="side-category-toggle" onClick={() => onToggle(category.id)} aria-expanded={!collapsed}>
+        <CaretDown size={12} weight="bold" className="side-category-caret" />
+        <span className="truncate">{category.name}</span>
+      </button>
+      {canManage && (
+        <Tooltip label="Create channel">
+          <button className="side-section-add" onClick={() => ui.openModal('createChannel', { groupId, categoryId: category.id })} aria-label="Create channel">
+            <Plus size={14} weight="bold" />
+          </button>
+        </Tooltip>
+      )}
+    </div>
+  );
+});
+
 function GroupSidebar({ groupId }: { groupId: string }) {
   const group = useData((s) => s.groups[groupId]);
   const channelIds = useData(useShallow((s) => s.groups[groupId]?.channelIds ?? []));
-  const types = useData(useShallow((s) => channelIds.map((id) => s.channels[id]?.type)));
+  const categoryOf = useData(useShallow((s) => channelIds.map((id) => s.channels[id]?.categoryId ?? null)));
+  const categories = useData((s) => s.groups[groupId]?.categories ?? NO_CATEGORIES);
+  const activeId = useUi((s) => (s.route.kind === 'group' ? s.route.channelId : null));
   const meId = useData((s) => s.me?.id);
   const role = group && meId ? group.members[meId]?.role : undefined;
   const canManage = useData((s) => can(s, groupId, PERM.MANAGE_CHANNELS));
-  const canSettings = useData((s) => can(s, groupId, PERM.MANAGE_GROUP) || can(s, groupId, PERM.MANAGE_ROLES) || can(s, groupId, PERM.KICK_MEMBERS));
+  const canSettings = useData(
+    (s) =>
+      can(s, groupId, PERM.MANAGE_GROUP) ||
+      can(s, groupId, PERM.MANAGE_ROLES) ||
+      can(s, groupId, PERM.KICK_MEMBERS) ||
+      can(s, groupId, PERM.BAN_MEMBERS) ||
+      can(s, groupId, PERM.VIEW_AUDIT_LOG),
+  );
   const canInvite = useData((s) => can(s, groupId, PERM.CREATE_INVITE));
   const memberCount = group ? Object.keys(group.members).length : 0;
+  const [collapsed, toggleCollapsed] = useCollapsed();
+  const [drop, setDrop] = useState<{ id: string; where: DropWhere } | null>(null);
+  const dragging = useRef<DragTarget | null>(null);
+
+  const sections = useMemo(() => {
+    const known = new Set(categories.map((c) => c.id));
+    const home = (i: number) => {
+      const c = categoryOf[i];
+      return c && known.has(c) ? c : null;
+    };
+    return {
+      top: channelIds.filter((_, i) => home(i) === null),
+      categories: categories.map((category) => ({ category, ids: channelIds.filter((_, i) => home(i) === category.id) })),
+    };
+  }, [channelIds, categoryOf, categories]);
+
+  // Dragging works with a mouse, for people allowed to manage channels.
+  const dnd = useMemo<ChannelDnd | null>(() => {
+    if (!canManage || isMobileDevice) return null;
+    const whereFor = (target: DragTarget, e: React.DragEvent): DropWhere | null => {
+      const d = dragging.current;
+      if (!d || d.id === target.id) return null;
+      if (d.kind === 'category' && target.kind === 'channel') return null; // categories only move among categories
+      if (d.kind === 'channel' && target.kind === 'category') return 'inside';
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      return e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+    };
+    return {
+      start(target, e) {
+        dragging.current = target;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', target.id);
+      },
+      over(target, e) {
+        const where = whereFor(target, e);
+        if (!where) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDrop((cur) => (cur?.id === target.id && cur.where === where ? cur : { id: target.id, where }));
+      },
+      leave(id) {
+        setDrop((cur) => (cur?.id === id ? null : cur));
+      },
+      drop(target, e) {
+        const where = whereFor(target, e);
+        const d = dragging.current;
+        dragging.current = null;
+        setDrop(null);
+        if (!where || !d) return;
+        e.preventDefault();
+        const layout = channelLayout(groupId);
+        if (d.kind === 'category') {
+          const cats = layout.categories.filter((c) => c !== d.id);
+          cats.splice(cats.indexOf(target.id) + (where === 'after' ? 1 : 0), 0, d.id);
+          void saveLayout(groupId, cats, layout.channels).catch(showError);
+          return;
+        }
+        const rest = layout.channels.filter((c) => c.id !== d.id);
+        if (target.kind === 'category') {
+          // Dropped on a category's name: it goes to the top of that category.
+          const first = rest.findIndex((c) => c.categoryId === target.id);
+          rest.splice(first === -1 ? rest.length : first, 0, { id: d.id, categoryId: target.id });
+        } else {
+          const t = rest.findIndex((c) => c.id === target.id);
+          if (t === -1) return;
+          rest.splice(t + (where === 'after' ? 1 : 0), 0, { id: d.id, categoryId: rest[t].categoryId });
+        }
+        void saveLayout(groupId, layout.categories, rest).catch(showError);
+      },
+      end() {
+        dragging.current = null;
+        setDrop(null);
+      },
+    };
+  }, [canManage, groupId]);
+
   if (!group) return null;
-  const text = channelIds.filter((_, i) => types[i] === 'text');
-  const voice = channelIds.filter((_, i) => types[i] === 'voice');
 
   const groupMenu = (rect: DOMRect) =>
     openMenu(
@@ -290,7 +543,12 @@ function GroupSidebar({ groupId }: { groupId: string }) {
         canSettings
           ? { label: 'Group settings', icon: <Gear size={16} />, onSelect: () => ui.openModal('groupSettings', { groupId }) }
           : { label: 'Members', icon: <Users size={16} />, onSelect: () => ui.openModal('groupSettings', { groupId, tab: 'members' }) },
-        ...(canManage ? [{ label: 'Create channel', icon: <Plus size={16} />, onSelect: () => ui.openModal('createChannel', { groupId }) }] : []),
+        ...(canManage
+          ? [
+              { label: 'Create channel', icon: <Plus size={16} />, onSelect: () => ui.openModal('createChannel', { groupId }) },
+              { label: 'Create category', icon: <FolderSimplePlus size={16} />, onSelect: () => ui.openModal('category', { groupId }) },
+            ]
+          : []),
         { label: 'Mark all as read', icon: <Check size={16} />, onSelect: () => markGroupRead(groupId) },
         { separator: true },
         role === 'owner'
@@ -317,6 +575,10 @@ function GroupSidebar({ groupId }: { groupId: string }) {
       'start',
     );
 
+  const row = (id: string) => (
+    <ChannelRow key={id} channelId={id} groupId={groupId} canManage={canManage} dnd={dnd} dropWhere={drop?.id === id ? drop.where : null} />
+  );
+
   return (
     <>
       <button className="side-header side-group-header" onClick={(e) => groupMenu(e.currentTarget.getBoundingClientRect())}>
@@ -335,32 +597,28 @@ function GroupSidebar({ groupId }: { groupId: string }) {
             </button>
           </div>
         )}
-        <SectionHeader label="Text channels" onAdd={canManage ? () => ui.openModal('createChannel', { groupId, type: 'text' }) : undefined} />
-        {text.map((id) => (
-          <ChannelRow key={id} channelId={id} groupId={groupId} canManage={canManage} />
-        ))}
-        <SectionHeader label="Voice channels" onAdd={canManage ? () => ui.openModal('createChannel', { groupId, type: 'voice' }) : undefined} />
-        {voice.map((id) => (
-          <ChannelRow key={id} channelId={id} groupId={groupId} canManage={canManage} />
-        ))}
-        {voice.length === 0 && <div className="side-hint">No voice channels yet.</div>}
+        {sections.top.length > 0 && <div className="side-top-channels">{sections.top.map(row)}</div>}
+        {sections.categories.map(({ category, ids }) => {
+          const folded = collapsed.has(category.id);
+          return (
+            <div key={category.id} className="side-category-group">
+              <CategoryHeader
+                groupId={groupId}
+                category={category}
+                collapsed={folded}
+                onToggle={toggleCollapsed}
+                canManage={canManage}
+                dnd={dnd}
+                dropWhere={drop?.id === category.id ? drop.where : null}
+              />
+              {/* A folded category still shows the channel you're in. */}
+              {(folded ? ids.filter((id) => id === activeId) : ids).map(row)}
+            </div>
+          );
+        })}
+        {channelIds.length === 0 && <div className="side-hint">No channels yet.</div>}
       </div>
     </>
-  );
-}
-
-function SectionHeader({ label, onAdd }: { label: string; onAdd?: () => void }) {
-  return (
-    <div className="side-section">
-      <span>{label}</span>
-      {onAdd && (
-        <Tooltip label="Create channel">
-          <button className="side-section-add" onClick={onAdd} aria-label="Create channel">
-            <Plus size={14} weight="bold" />
-          </button>
-        </Tooltip>
-      )}
-    </div>
   );
 }
 

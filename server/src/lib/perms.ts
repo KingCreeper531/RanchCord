@@ -17,9 +17,13 @@ export const PERM = {
   ATTACH_FILES: 1 << 10,
   CONNECT_VOICE: 1 << 11,
   USE_SOUNDBOARD: 1 << 12,
+  VIEW_AUDIT_LOG: 1 << 13,
+  BAN_MEMBERS: 1 << 14,
+  /** Time people out (they can't talk for a while). */
+  MODERATE_MEMBERS: 1 << 15,
 } as const;
 
-export const ALL_PERMS = (1 << 13) - 1;
+export const ALL_PERMS = (1 << 16) - 1;
 export const DEFAULT_EVERYONE =
   PERM.CREATE_INVITE | PERM.MENTION_EVERYONE | PERM.SEND_MESSAGES | PERM.ATTACH_FILES | PERM.CONNECT_VOICE | PERM.USE_SOUNDBOARD;
 

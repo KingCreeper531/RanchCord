@@ -23,11 +23,13 @@ import {
   groupMemberIds,
   hydrateMessages,
   isBlockedEither,
+  isTimedOut,
   relationship,
   requireChannel,
   requireMember,
   sharesGroup,
 } from '../lib/model.ts';
+import { audit, changes } from '../lib/audit.ts';
 import { PERM, hasPerm, membersWithRoles, requirePerm, rolesOf } from '../lib/perms.ts';
 import { HttpError, ID_RE, badRequest, forbidden, newId, notFound, now, parse } from '../lib/util.ts';
 import { sendPush } from '../push.ts';
@@ -90,6 +92,9 @@ const MediaEmbedSchema = z.object({
 });
 
 export const EmbedSchema = z.discriminatedUnion('kind', [KlipyEmbedSchema, MediaEmbedSchema]);
+
+/** What someone timed out in a group sees when they try to talk or react there. */
+const TIMED_OUT = "You're timed out in this group for now";
 
 const MessageSchema = z.object({
   content: z.string().max(8000, 'That message is too long (8000 characters max)').default(''),
@@ -324,6 +329,7 @@ export default async function channelRoutes(app: FastifyInstance) {
     if (channel.type === 'voice') throw badRequest("Voice channels don't have a text chat");
     const body = parse(MessageSchema, req.body);
     if (member) {
+      if (isTimedOut(member)) throw forbidden(TIMED_OUT);
       requirePerm(member, PERM.SEND_MESSAGES, "You don't have permission to send messages here");
       if (body.attachmentIds.length) requirePerm(member, PERM.ATTACH_FILES, "You don't have permission to upload files here");
     }
@@ -407,6 +413,11 @@ export default async function channelRoutes(app: FastifyInstance) {
     const msg = get<MessageRow>('SELECT * FROM messages WHERE id = ? AND channel_id = ?', messageId, id);
     if (!msg) return { ok: true };
     if (msg.author_id !== me.id && !hasPerm(member, PERM.MANAGE_MESSAGES)) throw forbidden('You can only delete your own messages');
+    if (msg.author_id !== me.id && channel.group_id) {
+      // Moderators deleting other people's messages shows up in the audit log (without the text).
+      const author = getUser(msg.author_id);
+      audit(channel.group_id, me.id, 'message_delete', { id: msg.author_id, name: author ? author.display_name || author.username : null }, { channel: channel.name });
+    }
     deleteAttachmentFiles([msg.id]);
     tx(() => {
       run('DELETE FROM messages WHERE id = ?', msg.id);
@@ -445,7 +456,8 @@ export default async function channelRoutes(app: FastifyInstance) {
   app.put(reactionRoute, async (req) => {
     const me = auth(req);
     const { id, messageId, emoji } = req.params as { id: string; messageId: string; emoji: string };
-    const { channel } = requireChannel(me.id, id);
+    const { channel, member } = requireChannel(me.id, id);
+    if (isTimedOut(member)) throw forbidden(TIMED_OUT);
     if (!get('SELECT 1 FROM messages WHERE id = ? AND channel_id = ?', messageId, id)) throw notFound('That message was deleted');
     if (!isEmoji(emoji)) throw badRequest("That emoji can't be used as a reaction");
     const res = run(
@@ -505,21 +517,39 @@ export default async function channelRoutes(app: FastifyInstance) {
     const { groupId } = req.params as { groupId: string };
     requirePerm(requireMember(me.id, groupId), PERM.MANAGE_CHANNELS, 'You need the Manage Channels permission');
     const body = parse(
-      z.object({ name: z.string().trim().min(1, 'Give the channel a name').max(48), type: z.enum(['text', 'voice']).default('text') }),
+      z.object({
+        name: z.string().trim().min(1, 'Give the channel a name').max(48),
+        type: z.enum(['text', 'voice']).default('text'),
+        categoryId: z.string().nullable().optional(),
+      }),
       req.body,
     );
     const name = body.type === 'text' ? channelName(body.name) : body.name.trim().slice(0, 48);
+    // Without a category picked, it goes in the first category holding that kind of channel.
+    const categoryId =
+      body.categoryId !== undefined
+        ? body.categoryId
+        : (get<{ category_id: string | null }>(
+            'SELECT category_id FROM channels WHERE group_id = ? AND type = ? ORDER BY position DESC LIMIT 1',
+            groupId,
+            body.type,
+          )?.category_id ?? null);
+    if (categoryId && !get('SELECT 1 FROM channel_categories WHERE id = ? AND group_id = ?', categoryId, groupId)) {
+      throw badRequest('That category was deleted');
+    }
     const position = (get<{ p: number | null }>('SELECT MAX(position) AS p FROM channels WHERE group_id = ?', groupId)?.p ?? 0) + 1;
     const id = newId();
     run(
-      'INSERT INTO channels (id, type, group_id, name, position, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO channels (id, type, group_id, name, position, category_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       id,
       body.type,
       groupId,
       name,
       position,
+      categoryId,
       now(),
     );
+    audit(groupId, me.id, 'channel_create', { id, name }, { type: body.type });
     const out = channelOut(getChannel(id)!);
     emitTo(groupMemberIds(groupId), 'channel:create', out);
     return out;
@@ -532,13 +562,31 @@ export default async function channelRoutes(app: FastifyInstance) {
     if (channel.type === 'dm') throw badRequest("DMs can't be renamed");
     requirePerm(member, PERM.MANAGE_CHANNELS, 'You need the Manage Channels permission');
     const body = parse(
-      z.object({ name: z.string().trim().min(1).max(48).optional(), topic: z.string().trim().max(300).optional() }),
+      z.object({
+        name: z.string().trim().min(1).max(48).optional(),
+        topic: z.string().trim().max(300).optional(),
+        categoryId: z.string().nullable().optional(),
+      }),
       req.body,
     );
-    if (body.name !== undefined) {
-      run('UPDATE channels SET name = ? WHERE id = ?', channel.type === 'text' ? channelName(body.name) : body.name, id);
+    const name = body.name === undefined ? undefined : channel.type === 'text' ? channelName(body.name) : body.name;
+    if (body.categoryId && !get('SELECT 1 FROM channel_categories WHERE id = ? AND group_id = ?', body.categoryId, channel.group_id)) {
+      throw badRequest('That category was deleted');
     }
+    if (name !== undefined) run('UPDATE channels SET name = ? WHERE id = ?', name, id);
     if (body.topic !== undefined) run('UPDATE channels SET topic = ? WHERE id = ?', body.topic, id);
+    if (body.categoryId !== undefined) {
+      // Moving to another category puts it at the bottom of that category.
+      const position = (get<{ p: number | null }>('SELECT MAX(position) AS p FROM channels WHERE group_id = ?', channel.group_id)?.p ?? 0) + 1;
+      if (body.categoryId !== channel.category_id) run('UPDATE channels SET category_id = ?, position = ? WHERE id = ?', body.categoryId, position, id);
+    }
+    const categoryName = (cid: string | null | undefined) =>
+      cid ? (get<{ name: string }>('SELECT name FROM channel_categories WHERE id = ?', cid)?.name ?? null) : null;
+    const diff = changes(
+      { name: channel.name, topic: channel.topic, category: categoryName(channel.category_id) },
+      { name, topic: body.topic, category: body.categoryId === undefined ? undefined : categoryName(body.categoryId) },
+    );
+    if (Object.keys(diff).length) audit(channel.group_id!, me.id, 'channel_update', { id, name: name ?? channel.name }, diff);
     const out = channelOut(getChannel(id)!);
     emitTo(groupMemberIds(channel.group_id!), 'channel:update', out);
     return out;
@@ -553,6 +601,7 @@ export default async function channelRoutes(app: FastifyInstance) {
     const textCount = get<{ n: number }>("SELECT COUNT(*) AS n FROM channels WHERE group_id = ? AND type = 'text'", channel.group_id)!.n;
     if (channel.type === 'text' && textCount <= 1) throw badRequest('A group needs at least one text channel');
     const members = groupMemberIds(channel.group_id!);
+    audit(channel.group_id!, me.id, 'channel_delete', { id, name: channel.name }, { type: channel.type });
     endCall(id, 'channel_deleted');
     deleteChannelFiles([id]);
     run('DELETE FROM channels WHERE id = ?', id);

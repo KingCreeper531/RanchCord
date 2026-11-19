@@ -16,6 +16,7 @@ import {
   SwitcherModal,
 } from './modals/BasicModals';
 import { AddGroupModal, CreateChannelModal, EditChannelModal, GroupSettingsModal, InviteModal, TopicModal } from './modals/GroupModals';
+import { BanModal, CategoryModal } from './modals/GroupAdmin';
 import { ImageCropModal } from './modals/ImageCrop';
 import { SettingsModal } from './settings/Settings';
 
@@ -32,6 +33,8 @@ const REGISTRY: Record<string, ComponentType<any>> = {
   addGroup: AddGroupModal,
   invite: InviteModal,
   groupSettings: GroupSettingsModal,
+  category: CategoryModal,
+  ban: BanModal,
   createChannel: CreateChannelModal,
   editChannel: EditChannelModal,
   topic: TopicModal,

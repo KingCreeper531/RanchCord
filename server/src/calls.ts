@@ -9,6 +9,7 @@ import {
   getMember,
   getUser,
   isBlockedEither,
+  isTimedOut,
   requireChannel,
 } from './lib/model.ts';
 import { PERM, requirePerm } from './lib/perms.ts';
@@ -205,6 +206,7 @@ export function registerCallHandlers(socket: Socket) {
       const { channel, member } = requireChannel(userId, channelId);
       if (channel.type !== 'dm' && channel.type !== 'voice') throw badRequest('Calls happen in DMs and voice channels');
       if (member) requirePerm(member, PERM.CONNECT_VOICE, "You don't have permission to join this voice channel");
+      if (isTimedOut(member)) throw forbidden("You're timed out in this group for now");
       let ringTarget: string | undefined;
       if (channel.type === 'dm') {
         ringTarget = dmRecipientId(channel.id, userId);

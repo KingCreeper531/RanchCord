@@ -15,16 +15,22 @@ export const PERM = {
   ATTACH_FILES: 1 << 10,
   CONNECT_VOICE: 1 << 11,
   USE_SOUNDBOARD: 1 << 12,
+  VIEW_AUDIT_LOG: 1 << 13,
+  BAN_MEMBERS: 1 << 14,
+  MODERATE_MEMBERS: 1 << 15,
 } as const;
 
-export const ALL_PERMS = (1 << 13) - 1;
+export const ALL_PERMS = (1 << 16) - 1;
 
 export const PERM_INFO: { bit: number; name: string; hint: string }[] = [
   { bit: PERM.ADMINISTRATOR, name: 'Administrator', hint: 'Every permission. Can do anything in the group, so give it out carefully.' },
-  { bit: PERM.MANAGE_GROUP, name: 'Manage group', hint: 'Change the group name and icon.' },
-  { bit: PERM.MANAGE_CHANNELS, name: 'Manage channels', hint: 'Create, edit and delete channels.' },
+  { bit: PERM.MANAGE_GROUP, name: 'Manage group', hint: 'Change the group name, icon, description and where join messages go.' },
+  { bit: PERM.MANAGE_CHANNELS, name: 'Manage channels', hint: 'Create, edit, delete and rearrange channels and categories.' },
   { bit: PERM.MANAGE_ROLES, name: 'Manage roles', hint: 'Create and edit roles below their own, and give them to people.' },
   { bit: PERM.KICK_MEMBERS, name: 'Kick members', hint: 'Remove people ranked below them from the group.' },
+  { bit: PERM.BAN_MEMBERS, name: 'Ban members', hint: 'Remove people ranked below them and stop them from coming back.' },
+  { bit: PERM.MODERATE_MEMBERS, name: 'Time out members', hint: "Stop people ranked below them from talking, reacting or joining voice for a while." },
+  { bit: PERM.VIEW_AUDIT_LOG, name: 'View audit log', hint: 'See who changed what in the group.' },
   { bit: PERM.MANAGE_MESSAGES, name: 'Manage messages', hint: "Delete other people's messages." },
   { bit: PERM.MANAGE_NICKNAMES, name: 'Manage nicknames', hint: "Change other people's nicknames." },
   { bit: PERM.MENTION_EVERYONE, name: 'Mention @everyone and all roles', hint: 'Ping the whole group with @everyone or @here, and ping any role.' },

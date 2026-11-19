@@ -964,3 +964,61 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-2) 80%, transparent);
 }
+
+/* ================= channel categories ================= */
+.side-category {
+  padding-right: 6px;
+  border-radius: var(--r-sm);
+}
+
+.side-category-toggle {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  margin-left: -6px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  color: inherit;
+}
+
+.side-category-toggle:hover {
+  color: var(--text-1);
+}
+
+.side-category-caret {
+  flex: none;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.side-category.is-collapsed .side-category-caret {
+  transform: rotate(-90deg);
+}
+
+.side-top-channels {
+  padding-top: 8px;
+}
+
+/* where a dragged channel or category will land */
+.side-row.is-drop-before,
+.side-category.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--brand);
+}
+
+.side-row.is-drop-after,
+.side-category.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--brand);
+}
+
+.side-category.is-drop-inside {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}
+
+.side-row[draggable='true'],
+.side-category[draggable='true'] {
+  -webkit-user-drag: element;
+}

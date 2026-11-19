@@ -5,6 +5,8 @@ import type {
   Channel,
   CustomEmoji,
   Group,
+  GroupLayout,
+  GroupMeta,
   GroupRole,
   Instance,
   KlipyEmbed,
@@ -98,6 +100,9 @@ function toGroup(g: ApiGroup): Group {
     members: Object.fromEntries(g.members.map((m) => [m.userId, { ...m, roles: m.roles ?? [] }])),
     roles: Object.fromEntries((g.roles ?? []).map((r) => [r.id, r])),
     everyonePermissions: g.everyonePermissions,
+    description: g.description ?? '',
+    systemChannelId: g.systemChannelId ?? null,
+    categories: [...(g.categories ?? [])].sort((a, b) => a.position - b.position),
   };
 }
 
@@ -303,12 +308,35 @@ export const data = {
     });
   },
 
-  updateGroup(meta: { id: string; name: string; icon: string | null; ownerId: string; everyonePermissions?: number }) {
+  updateGroup(meta: GroupMeta) {
     set((s) => {
       const g = s.groups[meta.id];
       if (!g) return s;
-      const next = { ...g, ...meta, everyonePermissions: meta.everyonePermissions ?? g.everyonePermissions };
+      const next = {
+        ...g,
+        name: meta.name,
+        icon: meta.icon,
+        ownerId: meta.ownerId,
+        everyonePermissions: meta.everyonePermissions ?? g.everyonePermissions,
+        description: meta.description ?? g.description,
+        systemChannelId: meta.systemChannelId !== undefined ? meta.systemChannelId : g.systemChannelId,
+      };
       return { groups: { ...s.groups, [g.id]: next } };
+    });
+  },
+
+  /** Category order and where every channel sits, after someone rearranged the channel list. */
+  applyLayout(e: GroupLayout) {
+    set((s) => {
+      const g = s.groups[e.groupId];
+      if (!g) return s;
+      const channels = { ...s.channels };
+      for (const c of e.channels) {
+        if (channels[c.id]) channels[c.id] = { ...channels[c.id], categoryId: c.categoryId, position: c.position };
+      }
+      const channelIds = [...g.channelIds].sort(byPosition(channels));
+      const categories = [...e.categories].sort((a, b) => a.position - b.position);
+      return { channels, groups: { ...s.groups, [g.id]: { ...g, categories, channelIds } } };
     });
   },
 

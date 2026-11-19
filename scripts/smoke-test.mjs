@@ -287,6 +287,79 @@ const bobView = await api('GET', `/api/users/${a.user.id}`, b.token);
 ok(!('background' in (bobView.user ?? bobView)), 'backgrounds stay private');
 ok(!(await api('PATCH', '/api/users/@me', a.token, { background: null })).background, 'background removed');
 
+// group settings: categories and channel order
+ok(g.categories?.length === 2 && g.channels.every((c) => c.categoryId), 'new groups come with Text and Voice channel categories');
+const cat = await api('POST', `/api/groups/${g.id}/categories`, a.token, { name: 'Games' });
+ok(await waitFor(B.events, 'group:layout', (p) => p.groupId === g.id && p.categories.some((c) => c.id === cat.id)), 'a new category shows up for everyone');
+ok((await api('PATCH', `/api/channels/${ch.id}`, a.token, { categoryId: cat.id })).categoryId === cat.id, 'a channel can move into a category');
+const before = (await api('GET', '/api/bootstrap', a.token)).groups.find((x) => x.id === g.id);
+const order = [...before.channels].sort((x, y) => x.position - y.position).reverse();
+await api('PUT', `/api/groups/${g.id}/layout`, a.token, {
+  categories: [cat.id, ...before.categories.filter((c) => c.id !== cat.id).map((c) => c.id)],
+  channels: order.map((c) => ({ id: c.id, categoryId: c.categoryId })),
+});
+const after = (await api('GET', '/api/bootstrap', a.token)).groups.find((x) => x.id === g.id);
+ok(after.categories.find((c) => c.id === cat.id).position === 0, 'categories can be reordered');
+ok(after.channels.find((c) => c.id === order[0].id).position === 0, 'channels can be reordered');
+try {
+  await api('PUT', `/api/groups/${g.id}/layout`, b.token, { categories: [], channels: [] });
+  ok(false, 'only channel managers can rearrange channels');
+} catch (e) {
+  ok(e.status === 403, 'only channel managers can rearrange channels');
+}
+await api('DELETE', `/api/groups/${g.id}/categories/${cat.id}`, a.token);
+const afterDelete = (await api('GET', '/api/bootstrap', a.token)).groups.find((x) => x.id === g.id);
+ok(afterDelete.channels.find((c) => c.id === ch.id).categoryId === null, "deleting a category keeps its channels");
+
+// audit log
+const log = await api('GET', `/api/groups/${g.id}/audit-log`, a.token);
+const logged = new Set(log.entries.map((e) => e.action));
+ok(['role_create', 'member_role_add', 'channel_create', 'category_create', 'channels_move'].every((x) => logged.has(x)), 'the audit log records role and channel changes');
+ok(log.users[a.user.id]?.id === a.user.id, 'the audit log says who did it');
+try {
+  await api('GET', `/api/groups/${g.id}/audit-log`, b.token);
+  ok(false, "people without permission can't read the audit log");
+} catch (e) {
+  ok(e.status === 403, "people without permission can't read the audit log");
+}
+
+// timeouts
+await api('PUT', `/api/groups/${g.id}/members/${b.user.id}/timeout`, a.token, { minutes: 5 });
+ok(await waitFor(B.events, 'group:member-update', (p) => p.member.userId === b.user.id && p.member.timeoutUntil > Date.now()), 'a timeout shows up for everyone');
+try {
+  await api('POST', `/api/channels/${text.id}/messages`, b.token, { content: 'can I talk?' });
+  ok(false, "timed-out people can't send messages");
+} catch (e) {
+  ok(e.status === 403, "timed-out people can't send messages");
+}
+try {
+  await api('PUT', `/api/channels/${text.id}/messages/${everyone.id}/reactions/${encodeURIComponent('👍')}`, b.token);
+  ok(false, "timed-out people can't react");
+} catch (e) {
+  ok(e.status === 403, "timed-out people can't react");
+}
+await api('PUT', `/api/groups/${g.id}/members/${b.user.id}/timeout`, a.token, { minutes: 0 });
+ok((await api('POST', `/api/channels/${text.id}/messages`, b.token, { content: 'back!' })).id, 'a timeout can be lifted early');
+
+// kicks and bans
+const inv2 = await api('GET', `/api/groups/${g.id}/invite`, a.token);
+await api('DELETE', `/api/groups/${g.id}/members/${b.user.id}`, a.token);
+ok((await api('GET', `/api/groups/${g.id}/audit-log?action=member_kick`, a.token)).entries[0]?.targetId === b.user.id, 'kicks are in the audit log');
+await api('POST', `/api/invites/${inv2.code}`, b.token);
+await api('PUT', `/api/groups/${g.id}/bans/${b.user.id}`, a.token, { reason: 'testing bans' });
+const bans = await api('GET', `/api/groups/${g.id}/bans`, a.token);
+ok(bans[0]?.user.id === b.user.id && bans[0].reason === 'testing bans', 'bans are listed with the reason');
+ok(!(await api('GET', '/api/bootstrap', b.token)).groups.some((x) => x.id === g.id), 'banning removes them from the group');
+try {
+  await api('POST', `/api/invites/${inv2.code}`, b.token);
+  ok(false, "banned people can't rejoin with an invite");
+} catch (e) {
+  ok(e.status === 403, "banned people can't rejoin with an invite");
+}
+await api('DELETE', `/api/groups/${g.id}/bans/${b.user.id}`, a.token);
+await api('POST', `/api/invites/${inv2.code}`, b.token);
+ok((await api('GET', '/api/bootstrap', b.token)).groups.some((x) => x.id === g.id), 'unbanned people can come back');
+
 // cleanup
 await api('DELETE', `/api/groups/${g.id}`, a.token);
 ok(await waitFor(B.events, 'group:delete', (p) => p.id === g.id), 'group deletion broadcast');

@@ -34,6 +34,8 @@ export interface ChannelRow {
   position: number;
   last_message_id: string | null;
   created_at: number;
+  /** The category it sits under in the channel list (null: above all categories). */
+  category_id: string | null;
 }
 
 export interface GroupRow {
@@ -42,6 +44,9 @@ export interface GroupRow {
   icon: string | null;
   owner_id: string;
   created_at: number;
+  description: string;
+  /** Where "X joined the group" messages go (null: the first text channel). */
+  system_channel_id: string | null;
 }
 
 export interface MemberRow {
@@ -50,6 +55,16 @@ export interface MemberRow {
   role: Role;
   nickname: string | null;
   joined_at: number;
+  /** Timed out until this time: can't send messages, react or join voice in the group. */
+  timeout_until: number | null;
+}
+
+export interface CategoryRow {
+  id: string;
+  group_id: string;
+  name: string;
+  position: number;
+  created_at: number;
 }
 
 export interface MessageRow {
@@ -128,9 +143,23 @@ export function channelOut(c: ChannelRow) {
     name: c.name,
     topic: c.topic,
     position: c.position,
+    categoryId: c.category_id ?? null,
     lastMessageId: c.last_message_id,
     createdAt: c.created_at,
   };
+}
+
+export function categoriesOf(groupId: string) {
+  return all<CategoryRow>('SELECT * FROM channel_categories WHERE group_id = ? ORDER BY position, created_at', groupId);
+}
+
+export function categoryOut(c: CategoryRow) {
+  return { id: c.id, name: c.name, position: c.position };
+}
+
+/** True while someone is timed out in a group. */
+export function isTimedOut(m: MemberRow | null | undefined): boolean {
+  return Boolean(m?.timeout_until && m.timeout_until > Date.now());
 }
 
 export function attachmentOut(a: AttachmentRow) {
@@ -155,6 +184,7 @@ export function memberOut(m: MemberRow, roles?: string[]) {
     role: m.role,
     nickname: m.nickname,
     joinedAt: m.joined_at,
+    timeoutUntil: m.timeout_until && m.timeout_until > Date.now() ? m.timeout_until : null,
     roles: roles ?? memberRoleIds(m.group_id, m.user_id),
   };
 }
@@ -164,7 +194,7 @@ export function groupOut(groupId: string) {
   if (!g) return null;
   const channels = all<ChannelRow>('SELECT * FROM channels WHERE group_id = ? ORDER BY position, created_at', groupId);
   const members = all<MemberRow & UserRow>(
-    `SELECT gm.group_id, gm.role, gm.nickname, gm.joined_at, u.*, u.id AS user_id
+    `SELECT gm.group_id, gm.role, gm.nickname, gm.joined_at, gm.timeout_until, u.*, u.id AS user_id
        FROM group_members gm JOIN users u ON u.id = gm.user_id
       WHERE gm.group_id = ? ORDER BY gm.joined_at`,
     groupId,
@@ -181,6 +211,9 @@ export function groupOut(groupId: string) {
     icon: g.icon,
     ownerId: g.owner_id,
     createdAt: g.created_at,
+    description: g.description ?? '',
+    systemChannelId: g.system_channel_id ?? null,
+    categories: categoriesOf(groupId).map(categoryOut),
     everyonePermissions: everyonePermissions(groupId),
     roles: rolesOf(groupId).map(roleOut),
     channels: channels.map(channelOut),

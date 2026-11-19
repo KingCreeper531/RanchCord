@@ -96,6 +96,8 @@
   /* On narrow screens the tabs slide sideways instead of squashing their labels onto two lines. */
   max-width: 100%;
   overflow-x: auto;
+  /* …and they never get squashed flat when what's below them is long. */
+  flex-shrink: 0;
   scrollbar-width: none;
 }
 
@@ -2558,4 +2560,152 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   user-select: text;
+}
+
+/* ================= group settings: details, members, bans, audit log ================= */
+.gs-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.gs-members-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gs-member-roles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+
+.gs-member-text .gs-member-meta {
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+.gs-member-text .gs-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--danger-soft, rgba(229, 83, 75, 0.14));
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.gs-loading,
+.gs-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 160px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.gs-empty p {
+  max-width: 340px;
+  margin: 0;
+}
+
+.gs-bans {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+}
+
+.gs-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gs-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gs-filters .ui-select {
+  flex: 1 1 180px;
+  width: auto;
+}
+
+.gs-audit-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: var(--r-md);
+}
+
+.gs-audit-entry:hover {
+  background: var(--bg-hover);
+}
+
+.gs-audit-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--text-2);
+}
+
+.gs-audit-avatar-gap {
+  flex: none;
+  width: 28px;
+}
+
+.gs-audit-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.gs-audit-text strong {
+  color: var(--text-1);
+}
+
+.gs-audit-line {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.gs-audit-time {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+
+.gs-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+@media (max-width: 760px) {
+  .gs-audit-time {
+    display: none;
+  }
 }

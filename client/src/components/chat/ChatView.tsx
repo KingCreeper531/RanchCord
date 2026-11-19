@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { call } from '../../calls/manager';
 import { askToNukeDm, sendMessage } from '../../lib/actions';
 import { useBackLayer } from '../../lib/back';
+import { formatFull } from '../../lib/format';
 import { isMobileDevice } from '../../lib/platform';
 import { EmojiText } from '../../lib/twemoji';
 import { useCall } from '../../store/call';
@@ -158,6 +159,18 @@ export function ChatView({ channelId }: { channelId: string }) {
   const channel = useData((s) => s.channels[channelId]);
   const recipient = useData((s) => dmRecipient(s, channelId));
   const blocked = useData((s) => (recipient ? s.relationships[recipient.id]?.type === 2 : false));
+  const timeoutUntil = useData((s) => {
+    const gid = s.channels[channelId]?.groupId;
+    return gid && s.me ? (s.groups[gid]?.members[s.me.id]?.timeoutUntil ?? null) : null;
+  });
+  const [, recheck] = useState(0);
+  const timedOut = Boolean(timeoutUntil && timeoutUntil > Date.now());
+  // Bring the typing box back by itself when the timeout runs out.
+  useEffect(() => {
+    if (!timedOut || !timeoutUntil) return;
+    const t = setTimeout(() => recheck((n) => n + 1), Math.min(timeoutUntil - Date.now() + 500, 2 ** 31 - 1));
+    return () => clearTimeout(t);
+  }, [timedOut, timeoutUntil]);
   const [picker, setPicker] = useState<'emoji' | 'gifs' | 'stickers' | null>(null);
   const [dragging, setDragging] = useState(false);
   const composer = useRef<ComposerHandle>(null);
@@ -225,6 +238,10 @@ export function ChatView({ channelId }: { channelId: string }) {
         {blocked ? (
           <div className="composer-blocked">
             You blocked this person. <button onClick={() => recipient && ui.showProfile(recipient.id, document.body)}>Manage</button>
+          </div>
+        ) : timedOut ? (
+          <div className="composer-blocked">
+            You're timed out in this group until {formatFull(timeoutUntil!)}. You can still read along.
           </div>
         ) : (
           <Composer

@@ -45,6 +45,8 @@ export interface Channel {
   lastMessageId: string | null;
   createdAt: number;
   recipientId?: string | null;
+  /** Group channels: the category it sits under (null: above all categories). */
+  categoryId?: string | null;
 }
 
 export interface Member {
@@ -53,6 +55,33 @@ export interface Member {
   nickname: string | null;
   joinedAt: number;
   roles: string[];
+  /** Timed out (can't talk, react or join voice in the group) until this time. */
+  timeoutUntil?: number | null;
+}
+
+/** What 'group:update' sends when a group's settings change. */
+export interface GroupMeta {
+  id: string;
+  name: string;
+  icon: string | null;
+  ownerId: string;
+  everyonePermissions?: number;
+  description?: string;
+  systemChannelId?: string | null;
+}
+
+/** What 'group:layout' sends when the channel list is rearranged. */
+export interface GroupLayout {
+  groupId: string;
+  categories: ChannelCategory[];
+  channels: { id: string; categoryId: string | null; position: number }[];
+}
+
+/** A collapsible section of a group's channel list. */
+export interface ChannelCategory {
+  id: string;
+  name: string;
+  position: number;
 }
 
 export interface GroupRole {
@@ -76,6 +105,11 @@ export interface Group {
   members: Record<string, Member>;
   roles: Record<string, GroupRole>;
   everyonePermissions: number;
+  description: string;
+  /** Where "X joined" messages go: a text channel id, null for the first text channel, or 'off'. */
+  systemChannelId: string | null;
+  /** Top to bottom. */
+  categories: ChannelCategory[];
 }
 
 export interface Attachment {
@@ -194,6 +228,9 @@ export interface ApiGroup {
   channels: Channel[];
   members: Member[];
   users?: User[];
+  description?: string;
+  systemChannelId?: string | null;
+  categories?: ChannelCategory[];
 }
 
 export interface Bootstrap {

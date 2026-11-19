@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Camera, CaretRight, Check, CopySimple, Crown, Hash, Link as LinkIcon, MagnifyingGlass, ShieldStar, SpeakerHigh, Trash, UsersThree, ArrowsClockwise } from '@phosphor-icons/react';
+import { Camera, CaretRight, Check, CopySimple, Hash, Link as LinkIcon, MagnifyingGlass, SpeakerHigh, Trash, UsersThree, ArrowsClockwise } from '@phosphor-icons/react';
 import {
   createChannel,
   createGroup,
@@ -8,7 +8,6 @@ import {
   deleteGroup,
   getInvite,
   joinInvite,
-  kickMember,
   leaveGroup,
   parseInviteCode,
   previewInvite,
@@ -16,20 +15,18 @@ import {
   renameGroup,
   sendInviteTo,
   setGroupIcon,
-  setMemberHasRole,
-  setMemberRole,
-  transferOwnership,
   updateChannel,
   type InvitePreview,
 } from '../../lib/actions';
 import { errorMessage } from '../../lib/api';
 import { initials } from '../../lib/format';
 import { fileUrl } from '../../lib/server';
-import { friendIds, useData, displayNameIn } from '../../store/data';
-import { PERM, can, memberColor, topPosition } from '../../lib/perms';
+import { friendIds, useData } from '../../store/data';
+import { PERM, can } from '../../lib/perms';
+import { AuditLogTab, BansTab, CategoryPicker, GroupDetailsSection, MembersTab } from './GroupAdmin';
 import { RolesTab } from './RolesEditor';
 import { ui } from '../../store/ui';
-import { Avatar, Button, ModalFrame, TextField, openMenu } from '../ui';
+import { Avatar, Button, ModalFrame, TextField } from '../ui';
 import { keepsAnimation, pickImage } from './ImageCrop';
 
 /* ---------------- add group: create or join ---------------- */
@@ -300,9 +297,9 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
   const meId = useData((s) => s.me!.id);
   const canGroup = useData((s) => can(s, groupId, PERM.MANAGE_GROUP));
   const canRoles = useData((s) => can(s, groupId, PERM.MANAGE_ROLES));
-  const canKick = useData((s) => can(s, groupId, PERM.KICK_MEMBERS));
-  const myTop = useData((s) => topPosition(s, groupId, s.me!.id));
-  type Tab = 'overview' | 'roles' | 'members' | 'danger';
+  const canBan = useData((s) => can(s, groupId, PERM.BAN_MEMBERS));
+  const canAudit = useData((s) => can(s, groupId, PERM.VIEW_AUDIT_LOG));
+  type Tab = 'overview' | 'roles' | 'members' | 'bans' | 'audit' | 'danger';
   const [tab, setTab] = useState<Tab>(() => {
     const wanted = (initialTab as Tab | undefined) ?? 'overview';
     if (wanted === 'overview' && !canGroup) return 'members';
@@ -311,23 +308,8 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
   const [name, setName] = useState(group?.name ?? '');
   const [busy, setBusy] = useState(false);
   const role = group?.members[meId]?.role;
-  const memberMap = useData((s) => s.groups[groupId]?.members);
-  const roleMap = useData((s) => s.groups[groupId]?.roles);
-  const users = useData((s) => s.users);
-  const members = useMemo(
-    () =>
-      Object.values(memberMap ?? {})
-        .map((m) => ({
-          m,
-          name: displayNameIn(useData.getState(), m.userId, groupId),
-          user: users[m.userId],
-          top: topPosition(useData.getState(), groupId, m.userId),
-          color: memberColor(useData.getState(), groupId, m.userId),
-        }))
-        .sort((a, b) => b.top - a.top || a.name.localeCompare(b.name)),
-    [memberMap, users, groupId, roleMap],
-  );
-  const roles = useMemo(() => Object.values(roleMap ?? {}).sort((a, b) => b.position - a.position), [roleMap]);
+  const memberCount = useData((s) => Object.keys(s.groups[groupId]?.members ?? {}).length);
+  const roleCount = useData((s) => Object.keys(s.groups[groupId]?.roles ?? {}).length);
   if (!group) return null;
 
   const changeIcon = async () => {
@@ -345,25 +327,6 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
     else ui.openModal('crop', { file, title: 'Group icon', shape: 'rounded', outWidth: 512, onDone: upload });
   };
 
-  const roleMenu = (rect: DOMRect, userId: string) => {
-    const has = new Set(useData.getState().groups[groupId]?.members[userId]?.roles ?? []);
-    openMenu(
-      rect,
-      roles.length
-        ? [
-            { header: 'Roles' },
-            ...roles.map((r) => ({
-              label: r.name,
-              checked: has.has(r.id),
-              disabled: r.position >= myTop,
-              onSelect: () => void setMemberHasRole(groupId, userId, r.id, !has.has(r.id)).catch((err) => ui.toast(errorMessage(err), 'error')),
-            })),
-          ]
-        : [{ header: 'No roles yet' }, { label: 'Create a role', onSelect: () => setTab('roles') }],
-      'end',
-    );
-  };
-
   return (
     <ModalFrame title="Group settings" subtitle={group.name} onClose={onClose} size={tab === 'roles' ? 'xl' : 'lg'}>
       <div className="tabs">
@@ -374,12 +337,22 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
         )}
         {canRoles && (
           <button className={tab === 'roles' ? 'is-active' : ''} onClick={() => setTab('roles')}>
-            Roles · {roles.length}
+            Roles · {roleCount}
           </button>
         )}
         <button className={tab === 'members' ? 'is-active' : ''} onClick={() => setTab('members')}>
-          Members · {members.length}
+          Members · {memberCount}
         </button>
+        {canBan && (
+          <button className={tab === 'bans' ? 'is-active' : ''} onClick={() => setTab('bans')}>
+            Bans
+          </button>
+        )}
+        {canAudit && (
+          <button className={tab === 'audit' ? 'is-active' : ''} onClick={() => setTab('audit')}>
+            Audit log
+          </button>
+        )}
         <button className={tab === 'danger' ? 'is-active' : ''} onClick={() => setTab('danger')}>
           {role === 'owner' ? 'Delete group' : 'Leave group'}
         </button>
@@ -425,95 +398,15 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
           </div>
         </div>
       )}
+      {tab === 'overview' && canGroup && <GroupDetailsSection groupId={groupId} />}
 
       {tab === 'roles' && canRoles && <RolesTab groupId={groupId} />}
 
-      {tab === 'members' && (
-        <div className="gs-members">
-          {members.map(({ m, name: n, user, top, color }) => {
-            const outranked = top < myTop;
-            const showKick = m.userId !== meId && canKick && m.role !== 'owner' && outranked;
-            const showOwnerTools = role === 'owner' && m.userId !== meId;
-            return (
-              <div key={m.userId} className="gs-member">
-                <Avatar user={user} size={36} />
-                <div className="gs-member-text">
-                  <strong className="truncate" style={{ color }}>
-                    {n}
-                    {m.role === 'owner' && <Crown size={14} weight="fill" className="role-crown" />}
-                    {m.role === 'admin' && <ShieldStar size={14} weight="fill" className="role-shield" />}
-                  </strong>
-                  <span className="gs-member-roles">
-                    {m.roles.length
-                      ? m.roles
-                          .map((id) => roleMap?.[id])
-                          .filter(Boolean)
-                          .sort((a, b) => b!.position - a!.position)
-                          .map((r) => (
-                            <span key={r!.id} className="role-chip">
-                              <span className="role-dot" style={{ background: r!.color ?? 'var(--text-4)' }} />
-                              {r!.name}
-                            </span>
-                          ))
-                      : user?.username}
-                  </span>
-                </div>
-                {canRoles && roles.length > 0 && (
-                  <Button size="sm" variant="ghost" onClick={(e) => roleMenu(e.currentTarget.getBoundingClientRect(), m.userId)}>
-                    Roles
-                  </Button>
-                )}
-                {(showKick || showOwnerTools) && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={(e) =>
-                      openMenu(e.currentTarget.getBoundingClientRect(), [
-                        ...(showOwnerTools
-                          ? [
-                              m.role === 'admin'
-                                ? { label: 'Remove admin', onSelect: () => void setMemberRole(groupId, m.userId, 'member').catch((err) => ui.toast(errorMessage(err), 'error')) }
-                                : { label: 'Make admin', icon: <ShieldStar size={16} />, onSelect: () => void setMemberRole(groupId, m.userId, 'admin').catch((err) => ui.toast(errorMessage(err), 'error')) },
-                              {
-                                label: 'Transfer ownership',
-                                icon: <Crown size={16} />,
-                                onSelect: () =>
-                                  ui.openModal('confirm', {
-                                    title: `Make ${n} the owner?`,
-                                    body: `${n} will own ${group.name}. You'll become an admin.`,
-                                    confirmLabel: 'Transfer',
-                                    onConfirm: () => transferOwnership(groupId, m.userId),
-                                  }),
-                              },
-                            ]
-                          : []),
-                        ...(showKick
-                          ? [
-                              {
-                                label: `Kick ${n}`,
-                                danger: true,
-                                onSelect: () =>
-                                  ui.openModal('confirm', {
-                                    title: `Kick ${n}?`,
-                                    body: 'They can come back if someone invites them again.',
-                                    confirmLabel: 'Kick',
-                                    danger: true,
-                                    onConfirm: () => kickMember(groupId, m.userId),
-                                  }),
-                              },
-                            ]
-                          : []),
-                      ], 'end')
-                    }
-                  >
-                    Manage
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {tab === 'members' && <MembersTab groupId={groupId} onRoles={() => setTab('roles')} />}
+
+      {tab === 'bans' && canBan && <BansTab groupId={groupId} />}
+
+      {tab === 'audit' && canAudit && <AuditLogTab groupId={groupId} />}
 
       {tab === 'danger' && (
         <div className="gs-danger">
@@ -570,18 +463,45 @@ export function GroupSettingsModal({ groupId, tab: initialTab, onClose }: { grou
 
 /* ---------------- channels ---------------- */
 
-export function CreateChannelModal({ groupId, type: initialType, onClose }: { groupId: string; type?: 'text' | 'voice'; onClose: () => void }) {
+/** The category a new channel of this kind goes in by default: where that kind of channel already lives. */
+function defaultCategory(groupId: string, type: 'text' | 'voice'): string | null {
+  const s = useData.getState();
+  const g = s.groups[groupId];
+  if (!g) return null;
+  const last = [...g.channelIds].reverse().find((id) => s.channels[id]?.type === type);
+  return (last ? s.channels[last]?.categoryId : null) ?? g.categories[0]?.id ?? null;
+}
+
+export function CreateChannelModal({
+  groupId,
+  type: initialType,
+  categoryId: initialCategory,
+  onClose,
+}: {
+  groupId: string;
+  type?: 'text' | 'voice';
+  /** Set when creating from a category's "+". */
+  categoryId?: string | null;
+  onClose: () => void;
+}) {
   const [type, setType] = useState<'text' | 'voice'>(initialType ?? 'text');
   const [name, setName] = useState('');
+  const [category, setCategory] = useState<string | null>(() => (initialCategory !== undefined ? initialCategory : defaultCategory(groupId, initialType ?? 'text')));
+  const [categoryTouched, setCategoryTouched] = useState(initialCategory !== undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const shown = type === 'text' ? name.toLowerCase().replace(/\s+/g, '-') : name;
+  const pickType = (t: 'text' | 'voice') => {
+    setType(t);
+    // Follow the type into its usual category, unless a category was picked on purpose.
+    if (!categoryTouched) setCategory(defaultCategory(groupId, t));
+  };
   const submit = async () => {
     if (!name.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      await createChannel(groupId, name.trim(), type);
+      await createChannel(groupId, name.trim(), type, category);
       onClose();
     } catch (err) {
       setError(errorMessage(err));
@@ -608,7 +528,7 @@ export function CreateChannelModal({ groupId, type: initialType, onClose }: { gr
       <div className="ui-field">
         <span className="ui-field-label">Channel type</span>
         <div className="type-cards">
-          <button className={`type-card${type === 'text' ? ' is-active' : ''}`} onClick={() => setType('text')}>
+          <button className={`type-card${type === 'text' ? ' is-active' : ''}`} onClick={() => pickType('text')}>
             <Hash size={24} />
             <span>
               <strong>Text</strong>
@@ -616,7 +536,7 @@ export function CreateChannelModal({ groupId, type: initialType, onClose }: { gr
             </span>
             <span className="radio" />
           </button>
-          <button className={`type-card${type === 'voice' ? ' is-active' : ''}`} onClick={() => setType('voice')}>
+          <button className={`type-card${type === 'voice' ? ' is-active' : ''}`} onClick={() => pickType('voice')}>
             <SpeakerHigh size={24} />
             <span>
               <strong>Voice</strong>
@@ -636,6 +556,14 @@ export function CreateChannelModal({ groupId, type: initialType, onClose }: { gr
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && void submit()}
       />
+      <CategoryPicker
+        groupId={groupId}
+        value={category}
+        onChange={(id) => {
+          setCategory(id);
+          setCategoryTouched(true);
+        }}
+      />
       {error && <div className="form-error">{error}</div>}
     </ModalFrame>
   );
@@ -645,12 +573,17 @@ export function EditChannelModal({ channelId, onClose }: { channelId: string; on
   const channel = useData((s) => s.channels[channelId]);
   const [name, setName] = useState(channel?.name ?? '');
   const [topic, setTopic] = useState(channel?.topic ?? '');
+  const [category, setCategory] = useState<string | null>(channel?.categoryId ?? null);
   const [busy, setBusy] = useState(false);
   if (!channel) return null;
   const save = async () => {
     setBusy(true);
     try {
-      await updateChannel(channelId, { name: name.trim(), topic: topic.trim() });
+      await updateChannel(channelId, {
+        name: name.trim(),
+        topic: topic.trim(),
+        ...(category !== (channel.categoryId ?? null) ? { categoryId: category } : {}),
+      });
       onClose();
     } catch (err) {
       ui.toast(errorMessage(err), 'error');
@@ -700,6 +633,7 @@ export function EditChannelModal({ channelId, onClose }: { channelId: string; on
           <textarea className="ui-textarea" value={topic} maxLength={300} placeholder="Let everyone know what this channel is for" onChange={(e) => setTopic(e.target.value)} />
         </div>
       )}
+      {channel.groupId && <CategoryPicker groupId={channel.groupId} value={category} onChange={setCategory} />}
     </ModalFrame>
   );
 }

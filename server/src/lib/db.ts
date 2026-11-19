@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { config } from '../config.ts';
+import { newId } from './util.ts';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
 
@@ -62,7 +63,8 @@ export function tx<T>(fn: () => T): T {
 
 export const qs = (n: number) => Array.from({ length: n }, () => '?').join(',');
 
-const migrations: string[] = [
+// Each step is SQL, or a function for steps that also move existing data around.
+const migrations: (string | (() => void))[] = [
   `
   CREATE TABLE users (
     id TEXT PRIMARY KEY,
@@ -301,12 +303,67 @@ const migrations: string[] = [
   ALTER TABLE attachments ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE storage_deletes ADD COLUMN storage_id TEXT;
   `,
+  () => {
+    // Discord-style group settings: channel categories, a description, a channel for "joined"
+    // messages, bans, timeouts and an audit log.
+    db.exec(`
+      CREATE TABLE channel_categories (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_categories_group ON channel_categories(group_id);
+      ALTER TABLE channels ADD COLUMN category_id TEXT;
+      ALTER TABLE groups ADD COLUMN description TEXT NOT NULL DEFAULT '';
+      ALTER TABLE groups ADD COLUMN system_channel_id TEXT;
+      ALTER TABLE group_members ADD COLUMN timeout_until INTEGER;
+      CREATE TABLE group_bans (
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reason TEXT NOT NULL DEFAULT '',
+        banned_by TEXT,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (group_id, user_id)
+      );
+      CREATE TABLE audit_log (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        actor_id TEXT,
+        action TEXT NOT NULL,
+        target_id TEXT,
+        target_name TEXT,
+        details TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_audit_group ON audit_log(group_id, id);
+    `);
+    // The old fixed "Text channels" and "Voice channels" sections become real categories.
+    const t = Date.now();
+    const groups = db.prepare('SELECT id FROM groups').all() as { id: string }[];
+    for (const g of groups) {
+      ['text', 'voice'].forEach((type, i) => {
+        const id = newId();
+        db.prepare('INSERT INTO channel_categories (id, group_id, name, position, created_at) VALUES (?, ?, ?, ?, ?)').run(
+          id,
+          g.id,
+          type === 'text' ? 'Text channels' : 'Voice channels',
+          i,
+          t,
+        );
+        db.prepare('UPDATE channels SET category_id = ? WHERE group_id = ? AND type = ?').run(id, g.id, type);
+      });
+    }
+  },
 ];
 
 const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
 for (let v = current; v < migrations.length; v++) {
   tx(() => {
-    db.exec(migrations[v]);
+    const step = migrations[v];
+    if (typeof step === 'string') db.exec(step);
+    else step();
     db.exec(`PRAGMA user_version = ${v + 1}`);
   });
 }
