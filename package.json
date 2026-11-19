@@ -1,7 +1,7 @@
 {
   "name": "ranchcord",
   "private": true,
-  "version": "1.1.5",
+  "version": "1.2.0",
   "description": "RanchCord: a private Discord-style chat app for you and your friends",
   "scripts": {
     "setup": "npm install && npm install --prefix server && npm install --prefix client && npm install --prefix desktop",

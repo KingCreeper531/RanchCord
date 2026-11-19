@@ -1,6 +1,6 @@
 [package]
 name = "ranchcord"
-version = "1.1.5"
+version = "1.2.0"
 description = "RanchCord for Windows"
 edition = "2021"
 publish = false
