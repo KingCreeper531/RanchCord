@@ -1970,3 +1970,10 @@ html.is-ios .msg a {
   flex-direction: column;
   gap: 4px;
 }
+
+/* Phones: fewer header buttons (tapping the name opens the profile anyway). */
+@media (max-width: 760px) {
+  .chat-header-actions .hide-on-phone {
+    display: none;
+  }
+}

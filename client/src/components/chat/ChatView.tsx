@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bomb, CloudArrowUp, Hash, List, Phone, PushPin, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
+import { Bomb, CloudArrowUp, Hash, List, MagnifyingGlass, Phone, PushPin, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../../calls/manager';
 import { askToNukeDm, sendMessage } from '../../lib/actions';
@@ -92,6 +92,9 @@ function ChatHeader({ channelId }: { channelId: string }) {
         </div>
       )}
       <div className="chat-header-actions">
+        <IconButton label="Search" onClick={() => ui.openModal('search', { channelId })}>
+          <MagnifyingGlass size={20} />
+        </IconButton>
         <IconButton label="Pinned messages" onClick={() => ui.openModal('pins', { channelId })}>
           <PushPin size={20} />
         </IconButton>
@@ -106,7 +109,7 @@ function ChatHeader({ channelId }: { channelId: string }) {
           </>
         )}
         {isDm && recipient && (
-          <IconButton label="Profile" onClick={(e) => ui.showProfile(recipient.id, e.currentTarget)}>
+          <IconButton label="Profile" className="hide-on-phone" onClick={(e) => ui.showProfile(recipient.id, e.currentTarget)}>
             <UserCircle size={22} />
           </IconButton>
         )}
@@ -184,6 +187,19 @@ export function ChatView({ channelId }: { channelId: string }) {
 
   useEffect(() => setPicker(null), [channelId]);
   useBackLayer(picker !== null, () => setPicker(null));
+
+  // Ctrl+F (Cmd+F on a Mac) searches messages, like Discord.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        if (useUi.getState().modals.length) return;
+        e.preventDefault();
+        ui.openModal('search', { channelId });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [channelId]);
 
   // Load trending GIFs in the background once, so the GIF tab is ready the moment it's opened.
   useEffect(() => {

@@ -398,6 +398,22 @@ ok((await api('GET', `/api/groups/${g.id}/audit-log?action=message_pin`, a.token
 await api('DELETE', `/api/channels/${text.id}/pins/${toPin.id}`, a.token);
 ok((await api('GET', `/api/channels/${text.id}/pins`, b.token)).length === 0, 'messages can be unpinned');
 
+// search
+await api('POST', `/api/channels/${text.id}/messages`, b.token, { content: 'the ranch dressing is 100% homemade' });
+const found = await api('GET', `/api/search?q=${encodeURIComponent('ranch homemade')}&groupId=${g.id}`, a.token);
+ok(found.messages.length >= 1 && found.messages[0].content.includes('homemade'), 'search finds messages with all the words');
+ok((await api('GET', `/api/search?q=${encodeURIComponent('100%')}&channelId=${text.id}`, a.token)).messages.length === 1, 'search treats % literally');
+ok((await api('GET', `/api/search?q=homemade&from=${a.user.id}&groupId=${g.id}`, a.token)).messages.length === 0, 'search can filter by who sent it');
+ok((await api('GET', '/api/search?q=homemade', b.token)).messages.length >= 1, 'search everywhere covers your groups');
+const outsider = await api('POST', '/api/auth/register', undefined, { username: `outsider_${stamp}`, password: PW, displayName: 'Outsider' });
+try {
+  await api('GET', `/api/search?q=homemade&groupId=${g.id}`, outsider.token);
+  ok(false, "people can't search groups they're not in");
+} catch (e) {
+  ok(e.status === 404 || e.status === 403, "people can't search groups they're not in");
+}
+ok((await api('GET', '/api/search?q=homemade', outsider.token)).messages.length === 0, "searching everywhere doesn't reach other people's chats");
+
 // link previews never reach this machine or the home network
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent(BASE + '/api/instance'), a.token)).preview === null, 'link previews refuse local addresses');
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent('http://192.168.1.1/'), a.token)).preview === null, 'link previews refuse the home network');
