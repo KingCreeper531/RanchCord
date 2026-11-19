@@ -1022,3 +1022,50 @@
 .side-category[draggable='true'] {
   -webkit-user-drag: element;
 }
+
+/* ================= smoother movement ================= */
+/* The chat dims a little as a side panel slides over it. */
+.m-main-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 29;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.m-nav,
+.m-side {
+  will-change: transform;
+}
+
+/* Taps wait until a panel has finished sliding (see MobileShell). */
+.app-body.is-settling .m-nav,
+.app-body.is-settling .m-side,
+.app-body.is-settling .m-main {
+  pointer-events: none;
+}
+
+/* Switching groups: the channel list eases in instead of snapping. */
+@keyframes side-swap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.side-scroll,
+.side-header {
+  animation: side-swap 200ms var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-scroll,
+  .side-header {
+    animation: none;
+  }
+}

@@ -4,7 +4,7 @@ import { ChatCircle, Crown, DotsThree, Phone, Prohibit, ShieldStar, UserMinus, U
 import { useShallow } from 'zustand/react/shallow';
 import { PERM, can, memberColor, topPosition } from '../lib/perms';
 import { call } from '../calls/manager';
-import { acceptFriend, blockUser, fetchProfile, kickMember, openDm, removeRelationship, sendFriendRequest, setMemberHasRole, setMemberRole } from '../lib/actions';
+import { acceptFriend, askToBlock, askToRemoveFriend, fetchProfile, kickMember, openDm, removeRelationship, sendFriendRequest, setMemberHasRole, setMemberRole } from '../lib/actions';
 import { errorMessage } from '../lib/api';
 import { formatShortDate } from '../lib/format';
 import { isMobileDevice } from '../lib/platform';
@@ -84,20 +84,17 @@ function ProfileCard({ userId, groupId }: { userId: string; groupId?: string | n
             onClick={(e) =>
               openMenu(e.currentTarget.getBoundingClientRect(), [
                 ...(rel === REL.FRIEND
-                  ? [{ label: 'Remove friend', icon: <UserMinus size={16} />, danger: true, onSelect: () => void act(() => removeRelationship(userId)) }]
+                  ? [{ label: 'Remove friend', icon: <UserMinus size={16} />, danger: true, onSelect: () => askToRemoveFriend(userId) }]
                   : []),
                 rel === REL.BLOCKED
                   ? { label: 'Unblock', onSelect: () => void act(() => removeRelationship(userId)) }
-                  : { label: 'Block', icon: <Prohibit size={16} />, danger: true, onSelect: () => void act(() => blockUser(userId)) },
+                  : { label: 'Block', icon: <Prohibit size={16} />, danger: true, onSelect: () => askToBlock(userId) },
                 ...(canModerate
                   ? [
                       { separator: true as const },
-                      ...(myRole === 'owner' && member!.role !== 'owner'
-                        ? [
-                            member!.role === 'admin'
-                              ? { label: 'Remove admin', onSelect: () => void act(() => setMemberRole(groupId!, userId, 'member')) }
-                              : { label: 'Make admin', icon: <ShieldStar size={16} />, onSelect: () => void act(() => setMemberRole(groupId!, userId, 'admin')) },
-                          ]
+                      // Admin powers come from roles now; older admins can still be turned back into members.
+                      ...(myRole === 'owner' && member!.role === 'admin'
+                        ? [{ label: 'Remove admin', onSelect: () => void act(() => setMemberRole(groupId!, userId, 'member')) }]
                         : []),
                       ...(canKick ? [{
                         label: `Kick ${name}`,

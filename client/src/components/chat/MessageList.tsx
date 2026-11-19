@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDown, Hash, UserPlus } from '@phosphor-icons/react';
-import { ackChannel, blockUser, loadLatest, loadOlder, openDm, removeRelationship, sendFriendRequest } from '../../lib/actions';
+import { ackChannel, askToBlock, askToRemoveFriend, loadLatest, loadOlder, openDm, sendFriendRequest } from '../../lib/actions';
 import { formatDate, sameDay } from '../../lib/format';
 import { attachMessageGestures } from '../../lib/messageGestures';
 import { dmRecipient, emptyMessages, isUnread, useData } from '../../store/data';
@@ -28,7 +28,7 @@ function ChannelStart({ channelId }: { channelId: string }) {
         </p>
         <div className="chat-start-actions">
           {rel === REL.FRIEND && (
-            <Button size="sm" variant="secondary" onClick={() => void removeRelationship(recipient.id)}>
+            <Button size="sm" variant="secondary" onClick={() => askToRemoveFriend(recipient.id)}>
               Remove friend
             </Button>
           )}
@@ -43,7 +43,7 @@ function ChannelStart({ channelId }: { channelId: string }) {
             </Button>
           )}
           {rel !== REL.BLOCKED && (
-            <Button size="sm" variant="secondary" onClick={() => void blockUser(recipient.id)}>
+            <Button size="sm" variant="secondary" onClick={() => askToBlock(recipient.id)}>
               Block
             </Button>
           )}

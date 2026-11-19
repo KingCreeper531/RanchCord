@@ -137,8 +137,13 @@ export const Composer = forwardRef<ComposerHandle, { channelId: string; placehol
       });
     }, []);
 
+    // Each insert (an emoji picked from the picker) is used exactly once. It used to stay in the store,
+    // so the old emoji popped back into the box whenever this chat's typing box showed up again.
     useEffect(() => {
-      if (insert && insert.channelId === channelId) insertText(insert.text);
+      if (!insert || insert.channelId !== channelId) return;
+      useUi.setState({ composerInsert: null });
+      if (Date.now() - insert.n > 3000) return;
+      insertText(insert.text);
     }, [insert, channelId, insertText]);
 
     const addFiles = useCallback((list: File[]) => {

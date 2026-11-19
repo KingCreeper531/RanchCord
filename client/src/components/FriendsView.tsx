@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import { ChatCircle, Check, CopySimple, DotsThreeVertical, MagnifyingGlass, Phone, Prohibit, UserMinus, Users, X } from '@phosphor-icons/react';
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../calls/manager';
-import { acceptFriend, blockUser, openDm, removeRelationship, sendFriendRequest } from '../lib/actions';
+import { acceptFriend, askToBlock, openDm, removeRelationship, sendFriendRequest } from '../lib/actions';
 import { errorMessage } from '../lib/api';
 import { formatFriendCode } from '../lib/format';
 import { EmojiText } from '../lib/twemoji';
@@ -89,7 +89,7 @@ const FriendRow = memo(function FriendRow({ rel }: { rel: Relationship }) {
                         onConfirm: () => removeRelationship(user.id),
                       }),
                   },
-                  { label: 'Block', danger: true, icon: <Prohibit size={16} />, onSelect: () => void run(() => blockUser(user.id)) },
+                  { label: 'Block', danger: true, icon: <Prohibit size={16} />, onSelect: () => askToBlock(user.id) },
                 ], 'end')
               }
             >

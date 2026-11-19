@@ -1,6 +1,6 @@
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, UploadTicket, User } from '../types';
+import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, UploadTicket, User } from '../types';
 import { ApiError, api, errorMessage, putToUrl, setToken, upload } from './api';
 import { expandEmojiShortcodes } from './emoji';
 import { imageSize, videoSize } from './image';
@@ -353,6 +353,33 @@ export async function removeRelationship(userId: string) {
 export async function blockUser(userId: string) {
   const r = await api.put<Relationship & { user: User }>(`/api/relationships/${userId}`, { type: 'block' });
   data.relationship({ ...r, since: Date.now() });
+}
+
+/** Blocking always asks first: a stray tap (say, while a chat slides open on a phone) must never block someone. */
+export function askToBlock(userId: string) {
+  const name = useData.getState().users[userId]?.displayName ?? 'this person';
+  ui.openModal('confirm', {
+    title: `Block ${name}?`,
+    body: "They won't be able to message or call you. You can unblock them anytime in Friends > Blocked.",
+    confirmLabel: 'Block',
+    danger: true,
+    onConfirm: () =>
+      blockUser(userId)
+        .then(() => ui.toast(`${name} is blocked`, 'success'))
+        .catch((err) => ui.toast(errorMessage(err), 'error')),
+  });
+}
+
+/** Unfriending asks first too. */
+export function askToRemoveFriend(userId: string) {
+  const name = useData.getState().users[userId]?.displayName ?? 'this person';
+  ui.openModal('confirm', {
+    title: `Remove ${name} as a friend?`,
+    body: 'You can still message each other. You can add them again later.',
+    confirmLabel: 'Remove friend',
+    danger: true,
+    onConfirm: () => removeRelationship(userId).catch((err) => ui.toast(errorMessage(err), 'error')),
+  });
 }
 
 /* ---------- profile ---------- */

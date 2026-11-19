@@ -287,8 +287,10 @@ export default async function groupRoutes(app: FastifyInstance) {
       req.body,
     );
     if (body.role !== undefined) {
-      if (actor.role !== 'owner') throw forbidden('Only the owner can make people admins');
+      if (actor.role !== 'owner') throw forbidden('Only the owner can change that');
       if (target.role === 'owner') throw badRequest('Use transfer ownership instead');
+      // Admin powers come from roles now (the Administrator permission). Older admins can still be demoted.
+      if (body.role === 'admin' && target.role !== 'admin') throw badRequest('Give them a role with the Administrator permission instead');
       run('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?', body.role, id, targetId);
       if (body.role !== target.role) audit(id, me.id, 'member_admin', userTarget(targetId), { role: [target.role, body.role] });
     }

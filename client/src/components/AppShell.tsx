@@ -84,6 +84,17 @@ function MobileShell() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // While a panel slides, taps are ignored: a quick second tap could otherwise land on whatever is
+  // moving under the finger (one way people got blocked by accident).
+  const [settling, setSettling] = useState(false);
+  const lastPane = useRef(pane);
+  useEffect(() => {
+    if (lastPane.current === pane) return;
+    lastPane.current = pane;
+    setSettling(true);
+    const t = setTimeout(() => setSettling(false), 340);
+    return () => clearTimeout(t);
+  }, [pane]);
   const navOffset = width - 56;
   const sideWidth = Math.min(width * 0.86, 340);
   const hasSide = route.kind === 'group';
@@ -132,26 +143,42 @@ function MobileShell() {
     ui.setMobilePane(target);
   };
 
+  // How far each side panel is open (0 shut, 1 open): drives their slight parallax and the chat's dimming.
+  const navOpen = Math.max(0, Math.min(1, x / navOffset));
+  const sideOpen = hasSide ? Math.max(0, Math.min(1, -x / sideWidth)) : 0;
+  const ease = 'cubic-bezier(.2,.85,.25,1)';
+  const anim = (prop: string) => (drag === null ? `${prop} 300ms ${ease}` : 'none');
+
   return (
-    <div ref={bodyRef} className="app-body" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
-      <div className="m-nav" style={{ visibility: x > 0 ? 'visible' : 'hidden' }}>
+    <div
+      ref={bodyRef}
+      className={`app-body${settling ? ' is-settling' : ''}`}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
+      <div
+        className="m-nav"
+        style={{ visibility: x > 0 ? 'visible' : 'hidden', transform: `translate3d(${(navOpen - 1) * 48}px,0,0)`, transition: anim('transform') }}
+      >
         <Rail />
         <Sidebar />
       </div>
       {hasSide && route.kind === 'group' && (
-        <div className="m-side" style={{ visibility: x < 0 ? 'visible' : 'hidden' }}>
+        <div
+          className="m-side"
+          style={{ visibility: x < 0 ? 'visible' : 'hidden', transform: `translate3d(${(1 - sideOpen) * 48}px,0,0)`, transition: anim('transform') }}
+        >
           <MemberList groupId={route.groupId} />
         </div>
       )}
-      <div
-        ref={mainRef}
-        className="m-main"
-        style={{ transform: `translate3d(${x}px,0,0)`, transition: drag === null ? 'transform 280ms cubic-bezier(.22,.8,.24,1)' : 'none' }}
-      >
+      <div ref={mainRef} className="m-main" style={{ transform: `translate3d(${x}px,0,0)`, transition: anim('transform') }}>
         <Wallpaper />
         <main className="main">
           <MainContent mobile />
         </main>
+        <div className="m-main-dim" style={{ opacity: Math.max(navOpen, sideOpen) * 0.35, transition: anim('opacity') }} />
         {pane !== 'main' && drag === null && <div className="m-main-veil" onClick={() => ui.setMobilePane('main')} />}
       </div>
     </div>

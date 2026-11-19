@@ -198,10 +198,9 @@ export function MembersTab({ groupId, onRoles }: { groupId: string; onRoles: () 
           const timedOut = Boolean(m.timeoutUntil && m.timeoutUntil > Date.now());
           const items: MenuItem[] = [];
           if (role === 'owner' && m.userId !== meId) {
+            // Admin powers come from roles (the Administrator permission); older admins can still be turned back into members.
+            if (m.role === 'admin') items.push({ label: 'Remove admin', onSelect: () => void setMemberRole(groupId, m.userId, 'member').catch(showError) });
             items.push(
-              m.role === 'admin'
-                ? { label: 'Remove admin', onSelect: () => void setMemberRole(groupId, m.userId, 'member').catch(showError) }
-                : { label: 'Make admin', icon: <ShieldStar size={16} />, onSelect: () => void setMemberRole(groupId, m.userId, 'admin').catch(showError) },
               {
                 label: 'Transfer ownership',
                 icon: <Crown size={16} />,

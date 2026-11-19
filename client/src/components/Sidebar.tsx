@@ -772,7 +772,7 @@ export function DeafIcon({ size = 19 }: { size?: number }) {
 export function Sidebar() {
   const route = useUi((s) => s.route);
   let content: ReactNode;
-  if (route.kind === 'group') content = <GroupSidebar groupId={route.groupId} />;
+  if (route.kind === 'group') content = <GroupSidebar key={route.groupId} groupId={route.groupId} />;
   else content = <HomeSidebar />;
   return (
     <aside className="sidebar">
