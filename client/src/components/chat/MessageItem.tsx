@@ -35,6 +35,7 @@ import type { Attachment, KlipyEmbed, Message, Reaction } from '../../types';
 import { Avatar, Button, Spinner, Tooltip, openMenu, type MenuItem } from '../ui';
 import { openReactionPicker } from '../pickers/ReactionPicker';
 import { LinkCard, previewableLinks } from './LinkCard';
+import { openMemberMenu } from '../memberMenu';
 
 const JOIN_LINES = [
   'just showed up. Pass the ranch!',
@@ -611,6 +612,8 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
   }
 
   const openProfile = (e: React.MouseEvent<HTMLElement>) => ui.showProfile(author.id, e.currentTarget, groupId);
+  // Right-clicking (or holding) a name or picture gives that person's menu instead of the message's.
+  const personMenu = (e: React.MouseEvent<HTMLElement>) => openMemberMenu(e, author.id, groupId ?? null);
   const showHeader = !continued || Boolean(message.replyTo);
   const className = [
     'msg',
@@ -641,7 +644,9 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
       <div className="msg-row">
         <span className="msg-gutter">
           {showHeader ? (
-            <Avatar user={author} size={40} onClick={openProfile} className="msg-avatar" />
+            <span className="msg-avatar-wrap" onContextMenu={personMenu}>
+              <Avatar user={author} size={40} onClick={openProfile} className="msg-avatar" />
+            </span>
           ) : (
             <Tooltip label={formatFull(message.createdAt)}>
               <time className="msg-hover-time">{formatTime(message.createdAt)}</time>
@@ -651,7 +656,7 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
         <div className="msg-body">
           {showHeader && (
             <div className="msg-header">
-              <button className="msg-author-name" onClick={openProfile} style={{ color: authorColor }}>
+              <button className="msg-author-name" onClick={openProfile} onContextMenu={personMenu} style={{ color: authorColor }}>
                 {authorName}
               </button>
               <Tooltip label={formatFull(message.createdAt)}>

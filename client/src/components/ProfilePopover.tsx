@@ -4,7 +4,7 @@ import { ChatCircle, Crown, DotsThree, Phone, Prohibit, ShieldStar, UserMinus, U
 import { useShallow } from 'zustand/react/shallow';
 import { PERM, can, memberColor, topPosition } from '../lib/perms';
 import { call } from '../calls/manager';
-import { acceptFriend, askToBlock, askToRemoveFriend, fetchProfile, kickMember, openDm, removeRelationship, sendFriendRequest, setMemberHasRole, setMemberRole } from '../lib/actions';
+import { acceptFriend, askToBlock, askToRemoveFriend, fetchProfile, openDm, removeRelationship, sendFriendRequest, setMemberHasRole, setMemberRole } from '../lib/actions';
 import { errorMessage } from '../lib/api';
 import { formatShortDate } from '../lib/format';
 import { isMobileDevice } from '../lib/platform';
@@ -15,6 +15,7 @@ import { useData, displayNameIn } from '../store/data';
 import { ui, useUi } from '../store/ui';
 import { REL } from '../types';
 import { Avatar, Button, IconButton, openMenu, placeFloating, presenceLabel } from './ui';
+import { moderationItems } from './memberMenu';
 
 function ProfileCard({ userId, groupId }: { userId: string; groupId?: string | null }) {
   const user = useData((s) => s.users[userId]);
@@ -61,8 +62,6 @@ function ProfileCard({ userId, groupId }: { userId: string; groupId?: string | n
     }
   };
 
-  const canKick = Boolean(groupId && member && !isMe && can(useData.getState(), groupId, PERM.KICK_MEMBERS) && topPosition(useData.getState(), groupId, me.id) > topPosition(useData.getState(), groupId, userId) && member.role !== 'owner');
-  const canModerate = canKick || (myRole === 'owner' && !isMe && Boolean(member));
 
   return (
     <div className={`profile${user.accentColor ? ' has-theme' : ''}`} style={theme}>
@@ -81,37 +80,28 @@ function ProfileCard({ userId, groupId }: { userId: string; groupId?: string | n
           )}
           <IconButton
             label="More"
-            onClick={(e) =>
-              openMenu(e.currentTarget.getBoundingClientRect(), [
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              openMenu(rect, [
                 ...(rel === REL.FRIEND
                   ? [{ label: 'Remove friend', icon: <UserMinus size={16} />, danger: true, onSelect: () => askToRemoveFriend(userId) }]
                   : []),
                 rel === REL.BLOCKED
                   ? { label: 'Unblock', onSelect: () => void act(() => removeRelationship(userId)) }
                   : { label: 'Block', icon: <Prohibit size={16} />, danger: true, onSelect: () => askToBlock(userId) },
-                ...(canModerate
-                  ? [
-                      { separator: true as const },
-                      // Admin powers come from roles now; older admins can still be turned back into members.
-                      ...(myRole === 'owner' && member!.role === 'admin'
-                        ? [{ label: 'Remove admin', onSelect: () => void act(() => setMemberRole(groupId!, userId, 'member')) }]
-                        : []),
-                      ...(canKick ? [{
-                        label: `Kick ${name}`,
-                        danger: true,
-                        onSelect: () =>
-                          ui.openModal('confirm', {
-                            title: `Kick ${name}?`,
-                            body: 'They can come back if someone invites them again.',
-                            confirmLabel: 'Kick',
-                            danger: true,
-                            onConfirm: () => kickMember(groupId!, userId),
-                          }),
-                      }] : []),
-                    ]
-                  : []),
-              ], 'end')
-            }
+                ...(() => {
+                  if (!groupId || !member || isMe) return [];
+                  const mod = [
+                    // Admin powers come from roles now; older admins can still be turned back into members.
+                    ...(myRole === 'owner' && member.role === 'admin'
+                      ? [{ label: 'Remove admin', onSelect: () => void act(() => setMemberRole(groupId, userId, 'member')) }]
+                      : []),
+                    ...moderationItems(rect, groupId, userId),
+                  ];
+                  return mod.length ? [{ separator: true as const }, ...mod] : [];
+                })(),
+              ], 'end');
+            }}
           >
             <DotsThree size={20} weight="bold" />
           </IconButton>

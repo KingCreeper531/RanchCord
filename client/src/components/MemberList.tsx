@@ -5,6 +5,7 @@ import { EmojiText } from '../lib/twemoji';
 import { useData, displayNameIn } from '../store/data';
 import { ui } from '../store/ui';
 import { Avatar, Tooltip } from './ui';
+import { openMemberMenu } from './memberMenu';
 
 const MemberRow = memo(function MemberRow({ userId, groupId }: { userId: string; groupId: string }) {
   const user = useData((s) => s.users[userId]);
@@ -18,6 +19,7 @@ const MemberRow = memo(function MemberRow({ userId, groupId }: { userId: string;
       role="button"
       tabIndex={0}
       onClick={(e) => ui.showProfile(userId, e.currentTarget, groupId)}
+      onContextMenu={(e) => openMemberMenu(e, userId, groupId)}
     >
       <Avatar user={user} size={34} presence={presence} />
       <div className="member-text">

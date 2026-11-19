@@ -1977,3 +1977,8 @@ html.is-ios .msg a {
     display: none;
   }
 }
+
+/* Holds the author's picture so right-clicking it opens the person's menu; adds no box of its own. */
+.msg-avatar-wrap {
+  display: contents;
+}
