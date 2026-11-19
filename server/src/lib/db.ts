@@ -381,6 +381,16 @@ const migrations: (string | (() => void))[] = [
   ALTER TABLE messages ADD COLUMN pinned_at INTEGER;
   CREATE INDEX idx_messages_pinned ON messages(channel_id, pinned_at) WHERE pinned_at IS NOT NULL;
   `,
+  `
+  -- Muted DMs, channels and groups: no pings or unread dots (direct @mentions still come through).
+  -- until: when the mute ends (null: until it's turned back off).
+  CREATE TABLE mutes (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL,
+    until INTEGER,
+    PRIMARY KEY (user_id, target_id)
+  );
+  `,
 ];
 
 const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;

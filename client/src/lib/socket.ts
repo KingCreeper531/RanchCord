@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
-import { data, useData } from '../store/data';
+import { channelMuted, data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Channel, CustomEmoji, GroupLayout, GroupMeta, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Presence, ReadState, SelfUser, Sound, Sticker, User, VoiceState } from '../types';
+import type { ApiGroup, Channel, CustomEmoji, GroupLayout, GroupMeta, GroupRole, Instance, KlipyEmbed, Member, Message, Mute, MyStorage, Presence, ReadState, SelfUser, Sound, Sticker, User, VoiceState } from '../types';
 import { REL } from '../types';
 import { ackChannel, logout, refreshBootstrap } from './actions';
 import { getToken } from './api';
@@ -87,14 +87,18 @@ function onMessage(m: Message) {
     ackChannel(m.channelId, m.id);
     return;
   }
-  const ch = useData.getState().channels[m.channelId];
-  const myRoles = ch?.groupId ? useData.getState().groups[ch.groupId]?.members[me.id]?.roles ?? [] : [];
-  const mentionsMe =
-    ch?.type === 'dm' ||
-    myRoles.some((r) => m.content.includes(`<@&${r}>`)) ||
-    m.content.includes(`<@${me.id}>`) ||
-    /(^|\s)@(everyone|here)\b/.test(m.content) ||
-    m.replyTo?.author?.id === me.id;
+  const s = useData.getState();
+  const ch = s.channels[m.channelId];
+  if (!ch) return;
+  const muted = channelMuted(s, ch.id);
+  const myRoles = ch.groupId ? s.groups[ch.groupId]?.members[me.id]?.roles ?? [] : [];
+  // Same rules as the server: a muted DM stays quiet, a muted channel or group only lets direct pings through.
+  const direct = m.pings
+    ? m.pings.includes(me.id)
+    : myRoles.some((r) => m.content.includes(`<@&${r}>`)) || m.content.includes(`<@${me.id}>`) || m.replyTo?.author?.id === me.id;
+  const everyone = m.mentionEveryone ?? /(^|\s)@(everyone|here)\b/.test(m.content);
+  const quietType = m.type === 'nuke' || m.type === 'pin';
+  const mentionsMe = ch.type === 'dm' ? !quietType && !muted : direct || (everyone && !muted);
   if (mentionsMe) {
     data.bumpMention(m.channelId);
     notifyMessage(m);
@@ -171,6 +175,7 @@ export function connectSocket() {
   s.on('group:roles', (e: { groupId: string; roles: GroupRole[] }) => data.setRoles(e.groupId, e.roles));
   s.on('instance:update', (i: Instance) => data.setInstance(i));
   s.on('favorites:update', (list: KlipyEmbed[]) => data.setFavorites(list));
+  s.on('mutes:update', (list: Mute[]) => data.setMutes(list));
   s.on('storage:update', (st: MyStorage) => data.setMyStorage(st));
   s.on('group:delete', (e: { id: string }) => {
     const route = useUi.getState().route;

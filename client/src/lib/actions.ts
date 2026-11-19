@@ -1,6 +1,6 @@
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, Sticker, UploadTicket, User } from '../types';
+import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, KlipyEmbed, Member, Message, Mute, MyStorage, Relationship, SelfUser, Sound, Sticker, UploadTicket, User } from '../types';
 import { ApiError, api, errorMessage, putToUrl, setToken, upload } from './api';
 import { expandEmojiShortcodes } from './emoji';
 import { imageSize, videoSize } from './image';
@@ -686,4 +686,15 @@ export function askToNukeDm(channelId: string) {
         .then(() => ui.toast('Chat nuked', 'success'))
         .catch((err) => ui.toast(errorMessage(err), 'error')),
   });
+}
+
+/* ---------- mutes ---------- */
+
+/** Mutes a DM, channel or group for some minutes, or until it's unmuted (null). */
+export async function muteTarget(targetId: string, minutes: number | null) {
+  data.setMutes(await api.put<Mute[]>(`/api/mutes/${targetId}`, { minutes }));
+}
+
+export async function unmuteTarget(targetId: string) {
+  data.setMutes(await api.del<Mute[]>(`/api/mutes/${targetId}`));
 }

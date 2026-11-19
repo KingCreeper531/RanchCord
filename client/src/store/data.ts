@@ -13,6 +13,7 @@ import type {
   Member,
   MyStorage,
   Message,
+  Mute,
   Presence,
   ReadState,
   Relationship,
@@ -49,6 +50,8 @@ export interface DataState {
   stickers: Record<string, Sticker>;
   sounds: Record<string, Sound>;
   favorites: KlipyEmbed[];
+  /** Muted DMs, channels and groups → when the mute ends (null: until unmuted). */
+  mutes: Record<string, number | null>;
   myStorage: MyStorage | null;
   presences: Record<string, Presence>;
   voice: Record<string, Record<string, VoiceState>>;
@@ -72,6 +75,7 @@ const initial: DataState = {
   stickers: {},
   sounds: {},
   favorites: [],
+  mutes: {},
   myStorage: null,
   presences: {},
   voice: {},
@@ -149,6 +153,8 @@ function patchMessage(s: DataState, channelId: string, messageId: string, fn: (m
   });
 }
 
+let muteTimer: ReturnType<typeof setTimeout> | undefined;
+
 export const data = {
   reset() {
     set(initial, true);
@@ -201,6 +207,7 @@ export const data = {
       rings: Object.fromEntries(b.rings.map((r) => [r.channelId, r.callerId])),
       messages,
     });
+    data.setMutes(b.mutes ?? []);
   },
 
   /* ---------- users & presence ---------- */
@@ -622,6 +629,22 @@ export const data = {
     set({ favorites });
   },
 
+  /* ---------- mutes ---------- */
+
+  setMutes(list: Mute[]) {
+    const t = Date.now();
+    const mutes: Record<string, number | null> = {};
+    for (const m of list) if (m.until === null || m.until > t) mutes[m.targetId] = m.until;
+    set({ mutes });
+    // When the next mute runs out, take it away so everything lights up again by itself.
+    clearTimeout(muteTimer);
+    const ends = Object.values(mutes).filter((u): u is number => u !== null);
+    if (ends.length) {
+      const wait = Math.min(Math.min(...ends) - t + 250, 2 ** 31 - 1);
+      muteTimer = setTimeout(() => data.setMutes(Object.entries(get().mutes).map(([targetId, until]) => ({ targetId, until }))), wait);
+    }
+  },
+
   setMyStorage(myStorage: MyStorage) {
     set({ myStorage });
   },
@@ -672,16 +695,31 @@ export function isUnread(s: DataState, channelId: string): boolean {
   return !rs?.lastReadId || ch.lastMessageId > rs.lastReadId;
 }
 
+/** undefined: not muted. null: muted until it's turned back on. A number: muted until then. */
+export function mutedUntil(s: DataState, targetId: string | null | undefined): number | null | undefined {
+  if (!targetId || !(targetId in s.mutes)) return undefined;
+  return s.mutes[targetId];
+}
+
+export const isMuted = (s: DataState, targetId: string | null | undefined) => mutedUntil(s, targetId) !== undefined;
+
+/** A channel is quiet when it's muted itself or its whole group is. */
+export function channelMuted(s: DataState, channelId: string): boolean {
+  return isMuted(s, channelId) || isMuted(s, s.channels[channelId]?.groupId);
+}
+
 export function mentionCount(s: DataState, channelId: string): number {
   return s.readStates[channelId]?.mentionCount ?? 0;
 }
 
 export function groupUnread(s: DataState, groupId: string): { unread: boolean; mentions: number } {
   const g = s.groups[groupId];
+  const quiet = isMuted(s, groupId);
   let unread = false;
   let mentions = 0;
   for (const id of g?.channelIds ?? []) {
-    if (isUnread(s, id)) unread = true;
+    // Muted channels (or a muted group) don't light up, but pings still count.
+    if (!quiet && !isMuted(s, id) && isUnread(s, id)) unread = true;
     mentions += mentionCount(s, id);
   }
   return { unread, mentions };

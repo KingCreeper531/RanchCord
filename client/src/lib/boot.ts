@@ -6,6 +6,7 @@ import { data, useData } from '../store/data';
 import { applyFontSize, applyTheme, resolvedTheme, ui, useUi } from '../store/ui';
 import { ackChannel, refreshBootstrap } from './actions';
 import { setupBack } from './back';
+import { setupHoldMenus } from './holdMenus';
 import { isMobileDevice, isNative } from './platform';
 import { emit } from './socket';
 import { unlockAudio } from './sound';
@@ -19,6 +20,7 @@ export function initPlatform() {
   applyTheme();
   applyFontSize();
   setupViewport();
+  setupHoldMenus();
 
   // Hash routing (notification links). Back/forward and the phone back button live in back.ts.
   setupBack();

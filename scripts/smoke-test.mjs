@@ -414,6 +414,44 @@ try {
 }
 ok((await api('GET', '/api/search?q=homemade', outsider.token)).messages.length === 0, "searching everywhere doesn't reach other people's chats");
 
+// mutes
+const pingsOf = async (token, channelId) =>
+  (await api('GET', '/api/bootstrap', token)).readStates.find((r) => r.channelId === channelId)?.mentionCount ?? 0;
+const dmMuted = await api('PUT', `/api/mutes/${dm.id}`, b.token, { minutes: null });
+ok(dmMuted.some((m) => m.targetId === dm.id && m.until === null), 'mute a DM until unmuted');
+ok(await waitFor(B.events, 'mutes:update', (l) => l.some((m) => m.targetId === dm.id)), "mutes sync to the person's other devices");
+let pingsBefore = await pingsOf(b.token, dm.id);
+await api('POST', `/api/channels/${dm.id}/messages`, a.token, { content: 'quiet please' });
+ok((await pingsOf(b.token, dm.id)) === pingsBefore, "a muted DM doesn't ping");
+const groupMuted = await api('PUT', `/api/mutes/${g.id}`, b.token, { minutes: 60 });
+const gm = groupMuted.find((m) => m.targetId === g.id);
+ok(gm && gm.until > Date.now() + 59 * 60_000 && gm.until <= Date.now() + 60 * 60_000, 'mute a group for an hour');
+pingsBefore = await pingsOf(b.token, text.id);
+const everyoneMsg = await api('POST', `/api/channels/${text.id}/messages`, a.token, { content: '@everyone dinner time' });
+ok(everyoneMsg.mentionEveryone === true, 'live messages say when @everyone counts');
+ok((await pingsOf(b.token, text.id)) === pingsBefore, "@everyone doesn't ping in a muted group");
+const directMsg = await api('POST', `/api/channels/${text.id}/messages`, a.token, { content: `<@${b.user.id}> you specifically` });
+ok(directMsg.pings?.includes(b.user.id) && directMsg.mentionEveryone === false, 'live messages list who they ping');
+ok((await pingsOf(b.token, text.id)) === pingsBefore + 1, 'a direct @mention still gets through a mute');
+ok((await api('GET', '/api/bootstrap', b.token)).mutes.length === 2, 'mutes come with the bootstrap');
+await api('DELETE', `/api/mutes/${dm.id}`, b.token);
+pingsBefore = await pingsOf(b.token, dm.id);
+await api('POST', `/api/channels/${dm.id}/messages`, a.token, { content: 'loud again' });
+ok((await pingsOf(b.token, dm.id)) === pingsBefore + 1, 'unmuting brings pings back');
+try {
+  await api('PUT', `/api/mutes/${text.id}`, outsider.token, { minutes: 15 });
+  ok(false, "people can't mute channels they can't see");
+} catch (e) {
+  ok(e.status === 404, "people can't mute channels they can't see");
+}
+try {
+  await api('PUT', `/api/mutes/${text.id}`, b.token, { minutes: 0 });
+  ok(false, 'a mute needs a sensible length');
+} catch (e) {
+  ok(e.status === 400, 'a mute needs a sensible length');
+}
+ok((await api('DELETE', `/api/mutes/${g.id}`, b.token)).length === 0, 'unmute a group');
+
 // link previews never reach this machine or the home network
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent(BASE + '/api/instance'), a.token)).preview === null, 'link previews refuse local addresses');
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent('http://192.168.1.1/'), a.token)).preview === null, 'link previews refuse the home network');

@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from 're
 import {
   ArrowDown,
   ArrowUp,
+  BellSlash,
   CaretDown,
   FolderSimplePlus,
   ChatCircleText,
@@ -41,7 +42,8 @@ import { canShareScreen, isMobileDevice } from '../lib/platform';
 import { EmojiText } from '../lib/twemoji';
 import { PERM, can, memberColor } from '../lib/perms';
 import { useCall } from '../store/call';
-import { channelLabel, dmRecipient, isUnread, mentionCount, pendingIncoming, sortedDmIds, useData, displayNameIn } from '../store/data';
+import { channelLabel, dmRecipient, isUnread, mentionCount, mutedUntil, pendingIncoming, sortedDmIds, useData, displayNameIn } from '../store/data';
+import { mutedLabel, muteMenuItem } from './muteMenu';
 import { ui, useUi } from '../store/ui';
 import type { ChannelCategory, ChosenStatus } from '../types';
 import { Avatar, IconButton, PresenceDot, Tooltip, openMenu, presenceLabel, type MenuItem } from './ui';
@@ -51,6 +53,17 @@ export function markGroupRead(groupId: string) {
   for (const id of s.groups[groupId]?.channelIds ?? []) if (isUnread(s, id) || s.readStates[id]?.mentionCount) ackChannel(id);
 }
 
+/** The little crossed-out bell on muted chats and channels. */
+function MutedIcon({ until }: { until: number | null }) {
+  return (
+    <Tooltip label={mutedLabel(until)}>
+      <span className="side-row-muted" aria-label={mutedLabel(until)}>
+        <BellSlash size={14} />
+      </span>
+    </Tooltip>
+  );
+}
+
 /* ---------------- home (DMs) ---------------- */
 
 const DmRow = memo(function DmRow({ channelId }: { channelId: string }) {
@@ -58,11 +71,12 @@ const DmRow = memo(function DmRow({ channelId }: { channelId: string }) {
   const presence = useData((s) => (user ? s.presences[user.id] ?? 'offline' : 'offline'));
   const unread = useData((s) => isUnread(s, channelId));
   const mentions = useData((s) => mentionCount(s, channelId));
+  const muted = useData((s) => mutedUntil(s, channelId));
   const inCall = useData((s) => Boolean(s.voice[channelId] && Object.keys(s.voice[channelId]).length));
   const active = useUi((s) => s.route.kind === 'dm' && s.route.channelId === channelId);
   return (
     <div
-      className={`side-row side-dm${active ? ' is-active' : ''}${unread ? ' is-unread' : ''}`}
+      className={`side-row side-dm${active ? ' is-active' : ''}${unread && muted === undefined ? ' is-unread' : ''}${muted !== undefined ? ' is-muted' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => ui.navigate({ kind: 'dm', channelId })}
@@ -72,6 +86,7 @@ const DmRow = memo(function DmRow({ channelId }: { channelId: string }) {
         openMenu(e, [
           { label: 'Mark as read', disabled: !unread && !mentions, onSelect: () => ackChannel(channelId) },
           { label: 'Profile', onSelect: () => user && ui.showProfile(user.id, e.target as Element) },
+          muteMenuItem(e, channelId, 'chat'),
           { separator: true },
           { label: 'Nuke chat', danger: true, icon: <Bomb size={16} weight="fill" />, onSelect: () => askToNukeDm(channelId) },
           { label: 'Close DM', onSelect: () => void closeDm(channelId) },
@@ -87,6 +102,7 @@ const DmRow = memo(function DmRow({ channelId }: { channelId: string }) {
           user?.customStatus && <span className="side-row-sub truncate"><EmojiText text={user.customStatus} /></span>
         )}
       </div>
+      {muted !== undefined && <MutedIcon until={muted} />}
       {mentions > 0 ? (
         <span className="ui-badge">{mentions}</span>
       ) : (
@@ -278,6 +294,7 @@ const ChannelRow = memo(function ChannelRow({
   const channel = useData((s) => s.channels[channelId]);
   const unread = useData((s) => isUnread(s, channelId));
   const mentions = useData((s) => mentionCount(s, channelId));
+  const muted = useData((s) => mutedUntil(s, channelId));
   const active = useUi((s) => s.route.kind === 'group' && s.route.channelId === channelId);
   const connected = useCall((s) => s.channelId === channelId);
   if (!channel) return null;
@@ -306,7 +323,7 @@ const ChannelRow = memo(function ChannelRow({
   return (
     <>
       <div
-        className={`side-row side-channel${active ? ' is-active' : ''}${unread && !active ? ' is-unread' : ''}${connected ? ' is-connected' : ''}${dropWhere ? ` is-drop-${dropWhere}` : ''}`}
+        className={`side-row side-channel${active ? ' is-active' : ''}${unread && !active && muted === undefined ? ' is-unread' : ''}${muted !== undefined ? ' is-muted' : ''}${connected ? ' is-connected' : ''}${dropWhere ? ` is-drop-${dropWhere}` : ''}`}
         role="button"
         tabIndex={0}
         onClick={open}
@@ -320,7 +337,9 @@ const ChannelRow = memo(function ChannelRow({
         onContextMenu={(e) => {
           e.preventDefault();
           openMenu(e, [
-            ...(voice ? [] : [{ label: 'Mark as read', disabled: !unread && !mentions, onSelect: () => ackChannel(channelId) }]),
+            ...(voice
+              ? []
+              : [{ label: 'Mark as read', disabled: !unread && !mentions, onSelect: () => ackChannel(channelId) }, muteMenuItem(e, channelId, 'channel')]),
             ...(canManage
               ? [
                   { separator: true as const },
@@ -345,9 +364,10 @@ const ChannelRow = memo(function ChannelRow({
           ]);
         }}
       >
-        {unread && !active && !voice && <span className="side-unread-dot" />}
+        {unread && !active && !voice && muted === undefined && <span className="side-unread-dot" />}
         {voice ? <SpeakerHigh size={20} weight={connected ? 'fill' : 'regular'} /> : <Hash size={20} />}
         <span className="side-row-name truncate">{channel.name}</span>
+        {muted !== undefined && <MutedIcon until={muted} />}
         {mentions > 0 && <span className="ui-badge">{mentions}</span>}
         {canManage && !voice && (
           <Tooltip label="Edit channel">
@@ -551,6 +571,7 @@ function GroupSidebar({ groupId }: { groupId: string }) {
             ]
           : []),
         { label: 'Mark all as read', icon: <Check size={16} />, onSelect: () => markGroupRead(groupId) },
+        muteMenuItem(rect, groupId, 'group'),
         { separator: true },
         role === 'owner'
           ? {

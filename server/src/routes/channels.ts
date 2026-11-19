@@ -24,6 +24,7 @@ import {
   hydrateMessages,
   isBlockedEither,
   isTimedOut,
+  mutedFor,
   relationship,
   requireChannel,
   requireMember,
@@ -153,9 +154,15 @@ export function createMessage(opts: {
   const created = now();
   const members = channelMembers(channel);
   const memberSet = new Set(members);
-  const mentioned = new Set((opts.mentions ?? []).filter((uid) => uid !== author.id && memberSet.has(uid)));
+  // Direct pings: @someone, a role they have, or a reply that pings them.
+  const direct = new Set((opts.mentions ?? []).filter((uid) => uid !== author.id && memberSet.has(uid)));
+  const mentioned = new Set(direct);
   if (opts.everyone) for (const uid of members) if (uid !== author.id) mentioned.add(uid);
   if (channel.type === 'dm' && !opts.silent) for (const uid of members) if (uid !== author.id) mentioned.add(uid);
+  // Muted: a DM stays quiet altogether; a channel or group only lets direct pings through.
+  for (const uid of mutedFor(channel, [...mentioned])) {
+    if (channel.type === 'dm' || !direct.has(uid)) mentioned.delete(uid);
+  }
 
   const reopened: string[] = [];
   tx(() => {
@@ -199,7 +206,14 @@ export function createMessage(opts: {
   for (const uid of reopened) emitTo([uid], 'dm:open', dmOut(getChannel(channel.id)!, uid));
 
   const row = get<MessageRow>('SELECT * FROM messages WHERE id = ?', id)!;
-  const message = { ...hydrateMessages([row], author.id)[0], reactions: [], nonce: opts.nonce };
+  // pings and mentionEveryone tell each app whether this message pings its person (live only, not saved).
+  const message = {
+    ...hydrateMessages([row], author.id)[0],
+    reactions: [],
+    nonce: opts.nonce,
+    pings: [...direct],
+    mentionEveryone: Boolean(opts.everyone),
+  };
   emitTo(members, 'message:create', message);
 
   // Web push for people who aren't looking at RanchCord right now.

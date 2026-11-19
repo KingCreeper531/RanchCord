@@ -168,6 +168,10 @@ export interface Message {
   reactions: Reaction[];
   /** When it was pinned (null or missing: not pinned). */
   pinnedAt?: number | null;
+  /** Who it pings directly (@them, a role of theirs, a reply). Only on messages that arrive live. */
+  pings?: string[];
+  /** Whether its @everyone or @here counts (the sender is allowed to). Only on live messages. */
+  mentionEveryone?: boolean;
   nonce?: string;
   pending?: boolean;
   failed?: boolean;
@@ -246,6 +250,12 @@ export interface ApiGroup {
   categories?: ChannelCategory[];
 }
 
+/** A muted DM, channel or group. until: when it ends (null: until it's unmuted). */
+export interface Mute {
+  targetId: string;
+  until: number | null;
+}
+
 export interface Bootstrap {
   user: SelfUser;
   users: User[];
@@ -257,6 +267,7 @@ export interface Bootstrap {
   stickers?: Sticker[];
   sounds: Sound[];
   favorites?: KlipyEmbed[];
+  mutes?: Mute[];
   myStorage?: MyStorage;
   presences: Record<string, Presence>;
   voiceStates: (VoiceState & { channelId: string })[];

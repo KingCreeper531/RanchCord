@@ -13,14 +13,18 @@ import {
   emojiOut,
   type StickerRow,
   stickerOut,
+  getGroup,
   getUser,
   groupOut,
   publicUser,
   relatedUserIds,
+  requireChannel,
+  requireMember,
   selfUser,
 } from '../lib/model.ts';
 import {
   HttpError,
+  ID_RE,
   badRequest,
   hashPassword,
   notFound,
@@ -41,6 +45,15 @@ export function broadcastUser(userId: string) {
   if (!user) return;
   emitTo(relatedUserIds(userId), 'user:update', publicUser(user));
   emitTo([userId], 'self:update', selfUser(user));
+}
+
+/** Someone's muted DMs, channels and groups (ones that have run out are cleared away). */
+function mutesOf(userId: string) {
+  run('DELETE FROM mutes WHERE user_id = ? AND until IS NOT NULL AND until <= ?', userId, now());
+  return all<{ target_id: string; until: number | null }>('SELECT target_id, until FROM mutes WHERE user_id = ?', userId).map((r) => ({
+    targetId: r.target_id,
+    until: r.until,
+  }));
 }
 
 export default async function userRoutes(app: FastifyInstance) {
@@ -107,6 +120,7 @@ export default async function userRoutes(app: FastifyInstance) {
       favorites: all<{ embed: string }>('SELECT embed FROM gif_favorites WHERE user_id = ? ORDER BY created_at DESC', me.id).map((r) =>
         JSON.parse(r.embed),
       ),
+      mutes: mutesOf(me.id),
       presences: presencesFor(users.keys()),
       voiceStates: voiceStatesFor(me.id),
       rings: ringsFor(me.id),
@@ -272,6 +286,36 @@ export default async function userRoutes(app: FastifyInstance) {
     run('DELETE FROM gif_favorites WHERE user_id = ? AND kind = ? AND slug = ?', me.id, kind, slug);
     const list = favs(me.id);
     emitTo([me.id], 'favorites:update', list);
+    return list;
+  });
+
+  /* ---------- mutes ---------- */
+
+  // Mute a DM, a channel or a whole group, for some minutes or (minutes: null) until it's unmuted.
+  app.put('/api/mutes/:targetId', async (req) => {
+    const me = auth(req);
+    const { targetId } = parse(z.object({ targetId: z.string().regex(ID_RE) }), req.params);
+    const { minutes } = parse(z.object({ minutes: z.number().int().min(1).max(366 * 24 * 60).nullable() }), req.body);
+    if (getGroup(targetId)) requireMember(me.id, targetId);
+    else requireChannel(me.id, targetId);
+    run(
+      `INSERT INTO mutes (user_id, target_id, until) VALUES (?, ?, ?)
+       ON CONFLICT(user_id, target_id) DO UPDATE SET until = excluded.until`,
+      me.id,
+      targetId,
+      minutes === null ? null : now() + minutes * 60_000,
+    );
+    const list = mutesOf(me.id);
+    emitTo([me.id], 'mutes:update', list);
+    return list;
+  });
+
+  app.delete('/api/mutes/:targetId', async (req) => {
+    const me = auth(req);
+    const { targetId } = parse(z.object({ targetId: z.string().regex(ID_RE) }), req.params);
+    run('DELETE FROM mutes WHERE user_id = ? AND target_id = ?', me.id, targetId);
+    const list = mutesOf(me.id);
+    emitTo([me.id], 'mutes:update', list);
     return list;
   });
 

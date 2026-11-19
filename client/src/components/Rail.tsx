@@ -9,6 +9,7 @@ import { dmRecipient, groupUnread, mentionCount, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
 import { Avatar, Tooltip, openMenu } from './ui';
 import { markGroupRead } from './Sidebar';
+import { muteMenuItem } from './muteMenu';
 
 function Pill({ state }: { state: 'active' | 'unread' | 'none' }) {
   return <span className={`rail-pill rail-pill-${state}`} />;
@@ -41,6 +42,7 @@ const GroupIcon = memo(function GroupIcon({ groupId }: { groupId: string }) {
             openMenu(e, [
               { label: 'Mark as read', onSelect: () => markGroupRead(groupId), disabled: !unread && !mentions },
               { label: 'Invite people', onSelect: () => ui.openModal('invite', { groupId }) },
+              muteMenuItem(e, groupId, 'group'),
             ]);
           }}
           aria-label={group.name}

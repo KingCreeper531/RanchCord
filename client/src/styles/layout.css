@@ -1069,3 +1069,26 @@
     animation: none;
   }
 }
+
+/* Muted chats and channels: dimmed, with a crossed-out bell. */
+.side-row.is-muted:not(.is-active) {
+  opacity: 0.5;
+}
+
+.side-row.is-muted:not(.is-active):hover {
+  opacity: 0.8;
+}
+
+.side-row-muted {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--text-4);
+}
+
+/* iPhones: holding a row opens its menu (lib/holdMenus.ts) instead of selecting text. */
+html.is-ios :is(.side-row, .side-category, .rail-btn, .sp-tile, .call-ctrl, .user-panel button) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}

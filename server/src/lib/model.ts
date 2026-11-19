@@ -351,6 +351,20 @@ export function channelMembers(ch: ChannelRow): string[] {
   );
 }
 
+/** Which of `userIds` have muted this channel (or the whole group it's in) right now. */
+export function mutedFor(channel: ChannelRow, userIds: string[]): Set<string> {
+  if (!userIds.length) return new Set();
+  const targets = channel.group_id ? [channel.id, channel.group_id] : [channel.id];
+  const rows = all<{ user_id: string }>(
+    `SELECT DISTINCT user_id FROM mutes
+      WHERE target_id IN (${qs(targets.length)}) AND (until IS NULL OR until > ?) AND user_id IN (${qs(userIds.length)})`,
+    ...targets,
+    Date.now(),
+    ...userIds,
+  );
+  return new Set(rows.map((r) => r.user_id));
+}
+
 export function groupMemberIds(groupId: string): string[] {
   return all<{ user_id: string }>('SELECT user_id FROM group_members WHERE group_id = ?', groupId).map((r) => r.user_id);
 }
