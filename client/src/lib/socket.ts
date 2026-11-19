@@ -127,6 +127,7 @@ export function connectSocket() {
 
   s.on('message:create', onMessage);
   s.on('message:update', (u: { id: string; channelId: string; content: string; editedAt: number }) => data.updateMessage(u));
+  s.on('message:pin', (e: { id: string; channelId: string; pinnedAt: number | null }) => data.setPinned(e.channelId, e.id, e.pinnedAt));
   s.on('message:delete', (e: { id: string; channelId: string }) => data.deleteMessage(e.channelId, e.id));
   s.on('channel:nuked', (e: { channelId: string; by: string }) => data.nukeChannel(e.channelId));
   s.on('reaction:add', (e: { channelId: string; messageId: string; userId: string; emoji: string }) => data.reaction(e, true));

@@ -538,6 +538,20 @@ export async function uploadEmoji(name: string, blob: Blob, filename = 'emoji.we
   return e;
 }
 
+/* ---------- pins ---------- */
+
+export async function pinMessage(channelId: string, messageId: string) {
+  await api.put(`/api/channels/${channelId}/pins/${messageId}`);
+  data.setPinned(channelId, messageId, Date.now());
+}
+
+export async function unpinMessage(channelId: string, messageId: string) {
+  await api.del(`/api/channels/${channelId}/pins/${messageId}`);
+  data.setPinned(channelId, messageId, null);
+}
+
+export const loadPins = (channelId: string) => api.get<Message[]>(`/api/channels/${channelId}/pins`);
+
 /* ---------- stickers people upload ---------- */
 
 export async function uploadSticker(name: string, blob: Blob, filename = 'sticker.webp') {

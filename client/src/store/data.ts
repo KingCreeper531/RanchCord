@@ -492,6 +492,10 @@ export const data = {
     set((s) => ({ messages: mapMessages(s, channelId, (list) => list.filter((m) => m.nonce !== nonce || !(m.pending || m.failed))) }));
   },
 
+  setPinned(channelId: string, id: string, pinnedAt: number | null) {
+    set((s) => ({ messages: patchMessage(s, channelId, id, (m) => ({ ...m, pinnedAt })) }));
+  },
+
   updateMessage(u: { id: string; channelId: string; content: string; editedAt: number }) {
     set((s) => ({ messages: patchMessage(s, u.channelId, u.id, (m) => ({ ...m, content: u.content, editedAt: u.editedAt })) }));
   },

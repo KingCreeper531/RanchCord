@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode, useMemo, useState } from 'react';
 import { Check, Copy } from '@phosphor-icons/react';
 import { EMOJI_SOURCE, shortcodeFor } from './emoji';
-import { fileUrl } from './server';
+import { fileUrl, publicOrigin } from './server';
 import { Emoji } from './twemoji';
 import { useData, displayNameIn } from '../store/data';
 import { ui } from '../store/ui';
@@ -17,7 +17,8 @@ export type MdNode =
   | { t: 'role'; id: string }
   | { t: 'everyone'; v: string }
   | { t: 'custom'; name: string; id: string; animated: boolean }
-  | { t: 'emoji'; v: string };
+  | { t: 'emoji'; v: string }
+  | { t: 'time'; unix: number; style: string };
 
 export type MdBlock =
   | { t: 'p'; c: MdNode[] }
@@ -45,6 +46,8 @@ const RULES: Rule[] = [
   { re: new RegExp(`<@(${ID})>`, 'y'), make: (m) => ({ t: 'mention', id: m[1] }) },
   { re: new RegExp(`<@&(${ID})>`, 'y'), make: (m) => ({ t: 'role', id: m[1] }) },
   { re: new RegExp(`<(a?):([a-zA-Z0-9_]{2,32}):(${ID})>`, 'y'), make: (m) => ({ t: 'custom', animated: Boolean(m[1]), name: m[2], id: m[3] }) },
+  // Discord timestamps: <t:1700000000> or <t:1700000000:R>, shown in each reader's own time zone.
+  { re: /<t:(-?\d{1,13})(?::([tTdDfFR]))?>/y, make: (m) => ({ t: 'time', unix: Number(m[1]), style: m[2] ?? 'f' }) },
   { re: /\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]+)\)/y, make: (m, sub) => ({ t: 'link', href: m[2], c: sub(m[1]) }) },
   { re: /<(https?:\/\/[^\s>]+)>/y, make: (m) => ({ t: 'link', href: m[1], c: [{ t: 'text', v: m[1] }] }) },
   { re: /https?:\/\/[^\s<]+[^<.,:;"'!?)\]\s]/y, make: (m) => ({ t: 'link', href: m[0], c: [{ t: 'text', v: m[0] }] }) },
@@ -241,6 +244,47 @@ export function CustomEmojiImage({ id, name, className }: { id: string; name: st
   );
 }
 
+const TIME_STYLES: Record<string, Intl.DateTimeFormatOptions> = {
+  t: { timeStyle: 'short' },
+  T: { timeStyle: 'medium' },
+  d: { dateStyle: 'short' },
+  D: { dateStyle: 'long' },
+  f: { dateStyle: 'long', timeStyle: 'short' },
+  F: { dateStyle: 'full', timeStyle: 'short' },
+};
+
+function relative(ms: number) {
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const diff = (ms - Date.now()) / 1000;
+  const steps: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]];
+  for (const [unit, size] of steps) if (Math.abs(diff) >= size) return rtf.format(Math.round(diff / size), unit);
+  return rtf.format(Math.round(diff), 'second');
+}
+
+/** A <t:...> timestamp, in the reader's own time zone. */
+function TimeStamp({ unix, style }: { unix: number; style: string }) {
+  const ms = unix * 1000;
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) return <>{`<t:${unix}>`}</>;
+  const text = style === 'R' ? relative(ms) : new Intl.DateTimeFormat(undefined, TIME_STYLES[style] ?? TIME_STYLES.f).format(date);
+  return (
+    <time className="md-time" dateTime={date.toISOString()} title={new Intl.DateTimeFormat(undefined, TIME_STYLES.F).format(date)}>
+      {text}
+    </time>
+  );
+}
+
+/** Links to a chat or message on this same server open right here. */
+function openOwnLink(e: React.MouseEvent<HTMLAnchorElement>) {
+  const m = /#\/channels\/[^\s]+$/.exec(e.currentTarget.href);
+  if (!m) return;
+  const s = useData.getState();
+  const base = publicOrigin(s.instance?.publicUrl);
+  if (!e.currentTarget.href.startsWith(base) && !e.currentTarget.href.startsWith(location.origin)) return;
+  e.preventDefault();
+  location.hash = m[0];
+}
+
 function Spoiler({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -307,9 +351,11 @@ function renderNodes(nodes: MdNode[], groupId: string | null | undefined, key = 
             {n.v}
           </code>
         );
+      case 'time':
+        return <TimeStamp key={k} unix={n.unix} style={n.style} />;
       case 'link':
         return (
-          <a key={k} href={n.href} target="_blank" rel="noreferrer noopener" title={n.href}>
+          <a key={k} href={n.href} target="_blank" rel="noreferrer noopener" title={n.href} onClick={openOwnLink}>
             {renderNodes(n.c, groupId, k)}
           </a>
         );
@@ -397,6 +443,7 @@ export function plainPreview(content: string, users: Record<string, { displayNam
     .replace(new RegExp(`<@(${ID})>`, 'g'), (_, id: string) => `@${users[id]?.displayName ?? 'unknown'}`)
     .replace(new RegExp(`<@&(${ID})>`, 'g'), '@role')
     .replace(new RegExp(`<a?:([a-zA-Z0-9_]{2,32}):(${ID})>`, 'g'), (_, name: string, id: string) => `:${emojis[id]?.name ?? name}:`)
+    .replace(/<t:(-?\d{1,13})(?::[tTdDfFR])?>/g, (_, s: string) => new Date(Number(s) * 1000).toLocaleString())
     .replace(/```[\s\S]*?```/g, '[code]')
     .replace(/\|\|([\s\S]+?)\|\|/g, '▮▮▮')
     .replace(/[*_~`]/g, '')

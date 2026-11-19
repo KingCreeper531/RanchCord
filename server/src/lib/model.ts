@@ -77,6 +77,7 @@ export interface MessageRow {
   embeds: string | null;
   edited_at: number | null;
   created_at: number;
+  pinned_at?: number | null;
 }
 
 export interface AttachmentRow {
@@ -328,6 +329,7 @@ export function hydrateMessages(rows: MessageRow[], viewerId: string) {
       attachments: attachmentsByMessage.get(r.id) ?? [],
       embeds: (r.embeds ? JSON.parse(r.embeds) : []) as Embed[],
       reactions: reactionsByMessage.get(r.id) ?? [],
+      pinnedAt: r.pinned_at ?? null,
     };
   });
 }

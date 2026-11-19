@@ -10,6 +10,7 @@ import {
   MagnifyingGlass,
   PencilSimple,
   Prohibit,
+  PushPin,
   ShieldStar,
   SignOut,
   Tag,
@@ -421,6 +422,7 @@ const ACTION_FILTERS: { value: AuditAction | ''; label: string }[] = [
   { value: 'channel_delete', label: 'Deleted channels' },
   { value: 'channels_move', label: 'Rearranging channels' },
   { value: 'message_delete', label: 'Deleted messages' },
+  { value: 'message_pin', label: 'Pins' },
   { value: 'group_update', label: 'Group changes' },
   { value: 'invite_create', label: 'Invite links' },
 ];
@@ -515,6 +517,10 @@ function describe(e: AuditEntry, users: Record<string, User>, groupId: string): 
       return { icon: <UserPlus size={18} />, text: <>{actor} made an invite link</>, lines };
     case 'invite_reset':
       return { icon: <LinkSimple size={18} />, text: <>{actor} reset their invite link</>, lines };
+    case 'message_pin':
+      return { icon: <PushPin size={18} />, text: <>{actor} pinned a message from {target}{d.channel ? <> in {strong(`#${String(d.channel)}`)}</> : null}</>, lines };
+    case 'message_unpin':
+      return { icon: <PushPin size={18} />, text: <>{actor} unpinned a message from {target}{d.channel ? <> in {strong(`#${String(d.channel)}`)}</> : null}</>, lines };
     case 'message_delete':
       return { icon: <ChatTeardropText size={18} />, text: <>{actor} deleted a message from {target}{d.channel ? <> in {strong(`#${String(d.channel)}`)}</> : null}</>, lines };
     default:

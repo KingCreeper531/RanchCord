@@ -449,6 +449,67 @@ export default async function channelRoutes(app: FastifyInstance) {
     return { ok: true, deleted: count };
   });
 
+  /* ---------- pins ---------- */
+
+  const MAX_PINS = 50;
+
+  /** In DMs either person can pin; in groups it takes Manage Messages. */
+  function requirePinner(userId: string, channelId: string) {
+    const { channel, member } = requireChannel(userId, channelId);
+    if (channel.type === 'voice') throw badRequest("Voice channels don't have messages to pin");
+    if (member) requirePerm(member, PERM.MANAGE_MESSAGES, 'You need the Manage Messages permission to pin');
+    return channel;
+  }
+
+  app.get('/api/channels/:id/pins', async (req) => {
+    const me = auth(req);
+    const { id } = req.params as { id: string };
+    requireChannel(me.id, id);
+    const rows = all<MessageRow>(
+      'SELECT * FROM messages WHERE channel_id = ? AND pinned_at IS NOT NULL ORDER BY pinned_at DESC LIMIT ?',
+      id,
+      MAX_PINS,
+    );
+    return hydrateMessages(rows, me.id);
+  });
+
+  app.put('/api/channels/:id/pins/:messageId', async (req) => {
+    const me = auth(req);
+    const { id, messageId } = req.params as { id: string; messageId: string };
+    const channel = requirePinner(me.id, id);
+    const msg = get<MessageRow>('SELECT * FROM messages WHERE id = ? AND channel_id = ?', messageId, id);
+    if (!msg) throw notFound('That message was deleted');
+    if (msg.type !== 'default') throw badRequest("That message can't be pinned");
+    if (msg.pinned_at) return { ok: true };
+    const count = get<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE channel_id = ? AND pinned_at IS NOT NULL', id)!.n;
+    if (count >= MAX_PINS) throw badRequest(`A channel can have ${MAX_PINS} pins. Unpin one first.`);
+    const pinnedAt = now();
+    run('UPDATE messages SET pinned_at = ? WHERE id = ?', pinnedAt, msg.id);
+    emitTo(channelMembers(channel), 'message:pin', { id: msg.id, channelId: id, pinnedAt });
+    if (channel.group_id) {
+      const author = getUser(msg.author_id);
+      audit(channel.group_id, me.id, 'message_pin', { id: msg.author_id, name: author ? author.display_name || author.username : null }, { channel: channel.name });
+    }
+    // A small notice in the chat, like Discord's "pinned a message to this channel".
+    createMessage({ channel: getChannel(id)!, author: getUser(me.id)!, type: 'pin', replyToId: msg.id, silent: true });
+    return { ok: true };
+  });
+
+  app.delete('/api/channels/:id/pins/:messageId', async (req) => {
+    const me = auth(req);
+    const { id, messageId } = req.params as { id: string; messageId: string };
+    const channel = requirePinner(me.id, id);
+    const msg = get<MessageRow>('SELECT * FROM messages WHERE id = ? AND channel_id = ?', messageId, id);
+    if (!msg || !msg.pinned_at) return { ok: true };
+    run('UPDATE messages SET pinned_at = NULL WHERE id = ?', msg.id);
+    emitTo(channelMembers(channel), 'message:pin', { id: msg.id, channelId: id, pinnedAt: null });
+    if (channel.group_id) {
+      const author = getUser(msg.author_id);
+      audit(channel.group_id, me.id, 'message_unpin', { id: msg.author_id, name: author ? author.display_name || author.username : null }, { channel: channel.name });
+    }
+    return { ok: true };
+  });
+
   /* ---------- reactions ---------- */
 
   const reactionRoute = '/api/channels/:id/messages/:messageId/reactions/:emoji';

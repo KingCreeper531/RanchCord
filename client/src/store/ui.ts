@@ -97,6 +97,12 @@ export function parseHash(hash: string): Route {
   return { kind: 'friends' };
 }
 
+/** The message a shared message link points at (#/channels/<group or @me>/<channel>/<message>). */
+export function messageInHash(hash: string): { channelId: string; messageId: string } | null {
+  const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  return parts[0] === 'channels' && parts[2] && parts[3] ? { channelId: parts[2], messageId: parts[3] } : null;
+}
+
 export function routeToHash(r: Route): string {
   if (r.kind === 'dm') return `#/channels/@me/${r.channelId}`;
   if (r.kind === 'group') return `#/channels/${r.groupId}${r.channelId ? `/${r.channelId}` : ''}`;
@@ -153,6 +159,8 @@ export const ui = {
 
   syncFromHash() {
     set({ route: parseHash(location.hash) });
+    const target = messageInHash(location.hash);
+    if (target) ui.jumpToMessage(target.channelId, target.messageId);
   },
 
   openModal(type: string, props: Record<string, unknown> = {}) {

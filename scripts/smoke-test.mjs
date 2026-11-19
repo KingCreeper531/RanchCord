@@ -381,6 +381,23 @@ await api('DELETE', `/api/groups/${g.id}/bans/${b.user.id}`, a.token);
 await api('POST', `/api/invites/${inv2.code}`, b.token);
 ok((await api('GET', '/api/bootstrap', b.token)).groups.some((x) => x.id === g.id), 'unbanned people can come back');
 
+// pins
+const toPin = await api('POST', `/api/channels/${text.id}/messages`, b.token, { content: 'pin me' });
+try {
+  await api('PUT', `/api/channels/${text.id}/pins/${toPin.id}`, b.token);
+  ok(false, 'pinning in a group takes Manage Messages');
+} catch (e) {
+  ok(e.status === 403, 'pinning in a group takes Manage Messages');
+}
+await api('PUT', `/api/channels/${text.id}/pins/${toPin.id}`, a.token);
+ok(await waitFor(B.events, 'message:pin', (p) => p.id === toPin.id && p.pinnedAt), 'a pin shows up for everyone');
+const pins = await api('GET', `/api/channels/${text.id}/pins`, b.token);
+ok(pins.length === 1 && pins[0].id === toPin.id && pins[0].pinnedAt, 'pinned messages are listed');
+ok(await waitFor(B.events, 'message:create', (p) => p.type === 'pin' && p.replyTo?.id === toPin.id), 'a "pinned a message" notice is posted');
+ok((await api('GET', `/api/groups/${g.id}/audit-log?action=message_pin`, a.token)).entries.length === 1, 'pins are in the audit log');
+await api('DELETE', `/api/channels/${text.id}/pins/${toPin.id}`, a.token);
+ok((await api('GET', `/api/channels/${text.id}/pins`, b.token)).length === 0, 'messages can be unpinned');
+
 // link previews never reach this machine or the home network
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent(BASE + '/api/instance'), a.token)).preview === null, 'link previews refuse local addresses');
 ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent('http://192.168.1.1/'), a.token)).preview === null, 'link previews refuse the home network');

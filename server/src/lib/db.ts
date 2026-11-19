@@ -376,6 +376,11 @@ const migrations: (string | (() => void))[] = [
     fetched_at INTEGER NOT NULL
   );
   `,
+  `
+  -- Pinned messages.
+  ALTER TABLE messages ADD COLUMN pinned_at INTEGER;
+  CREATE INDEX idx_messages_pinned ON messages(channel_id, pinned_at) WHERE pinned_at IS NOT NULL;
+  `,
 ];
 
 const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;

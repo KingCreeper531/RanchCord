@@ -29,7 +29,9 @@ export type AuditAction =
   | 'owner_transfer'
   | 'invite_create'
   | 'invite_reset'
-  | 'message_delete';
+  | 'message_delete'
+  | 'message_pin'
+  | 'message_unpin';
 
 export interface AuditEntry {
   id: string;

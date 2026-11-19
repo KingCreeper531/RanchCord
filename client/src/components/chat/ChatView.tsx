@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bomb, CloudArrowUp, Hash, List, Phone, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
+import { Bomb, CloudArrowUp, Hash, List, Phone, PushPin, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../../calls/manager';
 import { askToNukeDm, sendMessage } from '../../lib/actions';
@@ -92,6 +92,9 @@ function ChatHeader({ channelId }: { channelId: string }) {
         </div>
       )}
       <div className="chat-header-actions">
+        <IconButton label="Pinned messages" onClick={() => ui.openModal('pins', { channelId })}>
+          <PushPin size={20} />
+        </IconButton>
         {isDm && !inCallHere && (
           <>
             <IconButton label="Start voice call" onClick={() => void call.join(channelId)}>

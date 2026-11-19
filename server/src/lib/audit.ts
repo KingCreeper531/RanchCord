@@ -28,6 +28,8 @@ export const AUDIT_ACTIONS = [
   'invite_create',
   'invite_reset',
   'message_delete',
+  'message_pin',
+  'message_unpin',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

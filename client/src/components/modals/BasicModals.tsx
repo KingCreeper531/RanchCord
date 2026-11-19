@@ -9,13 +9,17 @@ import {
   DownloadSimple,
   Hash,
   MagnifyingGlass,
+  LinkSimple,
   PencilSimple,
+  PushPin,
+  PushPinSlash,
   SpeakerHigh,
   Trash,
   WindowsLogo,
   X,
 } from '@phosphor-icons/react';
-import { openDm, toggleReaction, updateProfile, uploadEmoji } from '../../lib/actions';
+import { loadPins, openDm, pinMessage, toggleReaction, unpinMessage, updateProfile, uploadEmoji } from '../../lib/actions';
+import { PERM, can } from '../../lib/perms';
 import { errorMessage } from '../../lib/api';
 import { initials } from '../../lib/format';
 import { isAndroid, isIOS } from '../../lib/platform';
@@ -24,7 +28,7 @@ import { Emoji } from '../../lib/twemoji';
 import { friendIds, sortedDmIds, useData, dmRecipient } from '../../store/data';
 import { ui } from '../../store/ui';
 import { Avatar, Button, ModalFrame, TextField } from '../ui';
-import { confirmDelete } from '../chat/MessageItem';
+import { confirmDelete, messageLink } from '../chat/MessageItem';
 import { keepsAnimation, pickImage } from './ImageCrop';
 
 /* ---------------- confirm ---------------- */
@@ -677,6 +681,10 @@ function DownloadRow({ icon, title, href, hint }: { icon: React.ReactNode; title
 
 export function MessageActionsModal({ channelId, messageId, canEdit, canDelete, onClose }: { channelId: string; messageId: string; canEdit: boolean; canDelete: boolean; onClose: () => void }) {
   const message = useData((s) => s.messages[channelId]?.list.find((m) => m.id === messageId));
+  const canPin = useData((s) => {
+    const gid = s.channels[channelId]?.groupId;
+    return !gid || can(s, gid, PERM.MANAGE_MESSAGES);
+  }) && message?.type === 'default';
   const recent = ui.getRecentReactions().slice(0, 6);
   const ref = useRef(false);
   if (!message) return null;
@@ -719,6 +727,26 @@ export function MessageActionsModal({ channelId, messageId, canEdit, canDelete, 
             <PencilSimple size={20} /> Edit message
           </button>
         )}
+        {canPin && (
+          <button
+            onClick={() => {
+              const act = message.pinnedAt ? unpinMessage(channelId, messageId) : pinMessage(channelId, messageId);
+              void act.then(() => ui.toast(message.pinnedAt ? 'Unpinned' : 'Pinned', 'success')).catch((err) => ui.toast(errorMessage(err), 'error'));
+              close();
+            }}
+          >
+            {message.pinnedAt ? <PushPinSlash size={20} /> : <PushPin size={20} />} {message.pinnedAt ? 'Unpin message' : 'Pin message'}
+          </button>
+        )}
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(messageLink(message));
+            ui.toast('Link copied', 'success');
+            close();
+          }}
+        >
+          <LinkSimple size={20} /> Copy message link
+        </button>
         {message.content && (
           <button
             onClick={() => {

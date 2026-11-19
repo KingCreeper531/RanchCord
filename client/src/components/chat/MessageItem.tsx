@@ -16,10 +16,13 @@ import {
   At,
   Bomb,
   Star,
+  PushPin,
+  PushPinSlash,
+  LinkSimple,
 } from '@phosphor-icons/react';
-import { deleteMessage, discardMessage, editMessage, retryMessage, toggleReaction, previewInvite, joinInvite, isFavorite, toggleFavorite, type InvitePreview } from '../../lib/actions';
+import { deleteMessage, discardMessage, editMessage, retryMessage, toggleReaction, previewInvite, joinInvite, isFavorite, toggleFavorite, pinMessage, unpinMessage, type InvitePreview } from '../../lib/actions';
 import { errorMessage } from '../../lib/api';
-import { downloadUrl, fileUrl } from '../../lib/server';
+import { downloadUrl, fileUrl, publicOrigin } from '../../lib/server';
 import { formatBytes, formatFull, formatTime, formatTimestamp, plural } from '../../lib/format';
 import { fit } from '../../lib/image';
 import { InlineMarkdown, Markdown, CustomEmojiImage } from '../../lib/markdown';
@@ -460,7 +463,16 @@ export function confirmDelete(message: Message) {
   });
 }
 
-function messageMenu(message: Message, canEdit: boolean, canDelete: boolean): MenuItem[] {
+const showError = (err: unknown) => ui.toast(errorMessage(err), 'error');
+
+/** A link straight to a message, for sharing (opens the chat and jumps to it). */
+export function messageLink(message: Message): string {
+  const s = useData.getState();
+  const groupId = s.channels[message.channelId]?.groupId;
+  return `${publicOrigin(s.instance?.publicUrl)}/#/channels/${groupId ?? '@me'}/${message.channelId}/${message.id}`;
+}
+
+function messageMenu(message: Message, canEdit: boolean, canDelete: boolean, canPin: boolean): MenuItem[] {
   const recent = ui.getRecentReactions();
   return [
     ...recent.slice(0, 4).map((emoji) => ({
@@ -480,6 +492,21 @@ function messageMenu(message: Message, canEdit: boolean, canDelete: boolean): Me
       label: 'Mention author',
       icon: <At size={16} />,
       onSelect: () => ui.insertIntoComposer(message.channelId, `@${message.author.username} `),
+    },
+    ...(canPin
+      ? [
+          message.pinnedAt
+            ? { label: 'Unpin message', icon: <PushPinSlash size={16} />, onSelect: () => void unpinMessage(message.channelId, message.id).catch(showError) }
+            : { label: 'Pin message', icon: <PushPin size={16} />, onSelect: () => void pinMessage(message.channelId, message.id).catch(showError) },
+        ]
+      : []),
+    {
+      label: 'Copy message link',
+      icon: <LinkSimple size={16} />,
+      onSelect: () => {
+        void navigator.clipboard.writeText(messageLink(message));
+        ui.toast('Link copied', 'success');
+      },
     },
     ...(canDelete
       ? [{ separator: true as const }, { label: 'Delete message', icon: <Trash size={16} />, danger: true, onSelect: () => confirmDelete(message) }]
@@ -514,6 +541,35 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
       Boolean(myRoles?.some((r) => message.content.includes(`<@&${r}>`))));
   const canEdit = mine && !message.pending && !message.failed && Boolean(message.content || message.attachments.length);
   const canDelete = !message.pending && (mine || canManage);
+  // In DMs either person can pin; in groups it takes Manage Messages.
+  const canPin = !message.pending && !message.failed && message.type === 'default' && (!groupId || canManage);
+
+  if (message.type === 'pin') {
+    const pinnedId = message.replyTo?.id;
+    return (
+      <div className="msg msg-system msg-pin" data-mid={message.id}>
+        <span className="msg-gutter">
+          <PushPin size={18} weight="fill" className="msg-system-icon" />
+        </span>
+        <div className="msg-system-text">
+          <button className="msg-author-name" onClick={(e) => ui.showProfile(author.id, e.currentTarget, groupId)}>
+            {authorName}
+          </button>{' '}
+          pinned{' '}
+          <button className="msg-system-link" onClick={() => pinnedId && ui.jumpToMessage(message.channelId, pinnedId)}>
+            a message
+          </button>{' '}
+          to this {groupId ? 'channel' : 'chat'}.{' '}
+          <button className="msg-system-link" onClick={() => ui.openModal('pins', { channelId: message.channelId })}>
+            See all pins
+          </button>
+          <Tooltip label={formatFull(message.createdAt)}>
+            <time className="msg-time">{formatTimestamp(message.createdAt)}</time>
+          </Tooltip>
+        </div>
+      </div>
+    );
+  }
 
   if (message.type === 'nuke') {
     return (
@@ -578,7 +634,7 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
         if ((e.target as HTMLElement).closest('a, video, audio')) return;
         e.preventDefault();
         if (isMobileDevice) ui.openModal('messageActions', { channelId: message.channelId, messageId: message.id, canEdit, canDelete });
-        else openMenu(e, messageMenu(message, canEdit, canDelete));
+        else openMenu(e, messageMenu(message, canEdit, canDelete, canPin));
       }}
     >
       {message.replyTo && <ReplyPreview message={message} groupId={groupId} />}
@@ -670,7 +726,7 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
             <button
               className="msg-action"
               aria-label="More"
-              onClick={(e) => openMenu(e.currentTarget.getBoundingClientRect(), messageMenu(message, canEdit, canDelete), 'end')}
+              onClick={(e) => openMenu(e.currentTarget.getBoundingClientRect(), messageMenu(message, canEdit, canDelete, canPin), 'end')}
             >
               <DotsThree size={20} weight="bold" />
             </button>

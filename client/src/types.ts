@@ -166,6 +166,8 @@ export interface Message {
   attachments: Attachment[];
   embeds: KlipyEmbed[];
   reactions: Reaction[];
+  /** When it was pinned (null or missing: not pinned). */
+  pinnedAt?: number | null;
   nonce?: string;
   pending?: boolean;
   failed?: boolean;

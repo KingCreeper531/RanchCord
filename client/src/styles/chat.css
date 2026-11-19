@@ -1901,3 +1901,72 @@ html.is-ios .msg a {
   transform: scale(1.08);
   background: #ff0033;
 }
+
+/* <t:...> timestamps */
+.md-time {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--bg-3);
+  white-space: nowrap;
+}
+
+/* "pinned a message" notice */
+.msg-system-link {
+  font: inherit;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+@media (hover: hover) {
+  .msg-system-link:hover {
+    text-decoration: underline;
+  }
+}
+
+/* pinned messages list */
+.pins {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--bg-3);
+}
+
+.pin-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pin-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pin-head time {
+  font-size: 12px;
+  color: var(--text-4);
+}
+
+.pin-text {
+  margin-top: 2px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
