@@ -20,6 +20,7 @@ fn main() {
         "set_badge",
         "flash",
         "set_title_bar_colors",
+        "set_brand",
         "notify",
         "set_open_at_login",
         "get_open_at_login",

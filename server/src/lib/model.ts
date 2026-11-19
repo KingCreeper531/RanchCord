@@ -198,8 +198,9 @@ export function dmOut(c: ChannelRow, viewerId: string) {
   return { ...channelOut(c), recipientId: other?.id ?? null, recipient: other ? publicUser(other) : null };
 }
 
+/** A GIF or sticker: 'klipy' ones from the GIF picker, 'media' ones that people uploaded or linked. */
 export interface Embed {
-  kind: 'klipy';
+  kind: 'klipy' | 'media';
   type: 'gif' | 'sticker';
   slug: string;
   title: string;

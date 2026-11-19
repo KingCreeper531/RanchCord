@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useData } from '../store/data';
+import { desktop } from './platform';
 import { fileUrl } from './server';
 
 export const DEFAULT_LOGO = '/icons/mascot.png';
@@ -86,7 +87,32 @@ export function brandName() {
   return personal.name || useData.getState().instance?.name || 'RanchCord';
 }
 
-/** Keeps the tab icon and title in sync with the app's name and logo. */
+/** Draws a picture (any format, first frame of a GIF) as a square PNG for the Windows app's icons. */
+async function iconPng(src: string, size = 128): Promise<Uint8Array | null> {
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = src;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const scale = Math.max(size / img.naturalWidth, size / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps the tab icon and title in sync with the app's name and logo, and, in the Windows app,
+ * the title bar, taskbar and tray too.
+ */
 export function useBrandFavicon() {
   const brand = useBrand();
   const custom = brand.logo !== DEFAULT_LOGO ? brand.logo : null;
@@ -101,5 +127,19 @@ export function useBrandFavicon() {
     // Keep any "(3)" unread prefix while swapping the name.
     const unread = /^\(\d+\) /.exec(document.title)?.[0] ?? '';
     document.title = unread + brand.name;
+    // The name under the icon if this page is added to an iPhone's home screen.
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', brand.name);
   }, [brand.name]);
+  useEffect(() => {
+    const setBrand = desktop?.setBrand;
+    if (!setBrand) return;
+    let stale = false;
+    void (async () => {
+      const icon = custom ? await iconPng(custom) : null;
+      if (!stale) setBrand(brand.name, icon);
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [brand.name, custom]);
 }

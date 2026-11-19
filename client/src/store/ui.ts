@@ -49,7 +49,7 @@ export interface UiState {
   modals: ModalEntry[];
   mobilePane: 'nav' | 'main' | 'side';
   toasts: Toast[];
-  popover: { kind: 'profile'; userId: string; groupId?: string | null; rect: DOMRect } | null;
+  popover: { kind: 'profile'; userId: string; groupId?: string | null; rect: DOMRect; stamp: number } | null;
   replyTo: Record<string, string | undefined>;
   editing: string | null;
   friendsTab: 'online' | 'all' | 'pending' | 'blocked' | 'add';
@@ -125,16 +125,26 @@ export const useUi = create<UiState>(() => ({
 const set = useUi.setState;
 const get = useUi.getState;
 
-let modalSeq = 0;
+let stampSeq = 0;
 let toastSeq = 0;
+
+/** A number that only goes up. Things that open get one, so Back can close the newest first. */
+export function nextStamp() {
+  return ++stampSeq;
+}
+
+type HistoryWriter = (hash: string, replace: boolean) => void;
+let writeHistory: HistoryWriter = (hash, replace) => (replace ? history.replaceState(null, '', hash) : history.pushState(null, '', hash));
+
+/** lib/back.ts plugs in here, so changing pages can reuse the extra history entry it keeps for Back. */
+export function setHistoryWriter(writer: HistoryWriter) {
+  writeHistory = writer;
+}
 
 export const ui = {
   navigate(route: Route, opts: { replace?: boolean; openMain?: boolean } = {}) {
     const hash = routeToHash(route);
-    if (location.hash !== hash) {
-      if (opts.replace) history.replaceState(null, '', hash);
-      else history.pushState(null, '', hash);
-    }
+    if (location.hash !== hash) writeHistory(hash, Boolean(opts.replace));
     set({ route, popover: null, mobilePane: opts.openMain === false ? get().mobilePane : 'main' });
     if (route.kind === 'group' && route.channelId) {
       ui.setPrefs({ lastChannelByGroup: { ...get().prefs.lastChannelByGroup, [route.groupId]: route.channelId } });
@@ -146,7 +156,7 @@ export const ui = {
   },
 
   openModal(type: string, props: Record<string, unknown> = {}) {
-    const id = ++modalSeq;
+    const id = nextStamp();
     set((s) => ({ modals: [...s.modals, { id, type, props }], popover: null }));
     return id;
   },
@@ -166,7 +176,7 @@ export const ui = {
   },
 
   showProfile(userId: string, el: Element, groupId?: string | null) {
-    set({ popover: { kind: 'profile', userId, groupId, rect: el.getBoundingClientRect() } });
+    set({ popover: { kind: 'profile', userId, groupId, rect: el.getBoundingClientRect(), stamp: nextStamp() } });
   },
 
   closePopover() {

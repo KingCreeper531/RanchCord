@@ -254,10 +254,27 @@ ok((await api('GET', '/api/bootstrap', a.token)).favorites?.[0]?.slug === favGif
 ok((await api('DELETE', `/api/favorites/gif/${favGif.slug}`, a.token)).length === 0, 'gif unfavorited');
 try {
   await api('PUT', '/api/favorites', a.token, { ...favGif, url: 'https://evil.example.com/x.gif' });
-  ok(false, 'only KLIPY links can be favorited');
+  ok(false, 'picker GIFs must be KLIPY links');
 } catch (e) {
-  ok(e.status === 400, 'only KLIPY links can be favorited');
+  ok(e.status === 400, 'picker GIFs must be KLIPY links');
 }
+// GIFs people upload or link can be favorited and sent again too
+const linkGif = { kind: 'media', type: 'gif', slug: 'url:abc123', title: '', url: 'https://media.example.com/dance.gif', mp4: null, webp: null, preview: null, width: 300, height: 200 };
+const fileGif = { ...linkGif, slug: 'att:01ABC', url: '/files/attachments/01ABC/dance.gif' };
+ok((await api('PUT', '/api/favorites', a.token, linkGif)).some((f) => f.slug === linkGif.slug), 'a linked GIF can be favorited');
+ok((await api('PUT', '/api/favorites', a.token, fileGif)).some((f) => f.slug === fileGif.slug), 'an uploaded GIF can be favorited');
+const resent = await api('POST', `/api/channels/${text.id}/messages`, a.token, { content: '', embeds: [fileGif] });
+ok(resent.embeds?.[0]?.kind === 'media', 'a favorited GIF can be sent again');
+for (const bad of ['http://plain.example.com/x.gif', 'javascript:alert(1)', '/files/../data/secret.key', '/api/bootstrap']) {
+  try {
+    await api('PUT', '/api/favorites', a.token, { ...linkGif, slug: 'url:bad', url: bad });
+    ok(false, `refuses a GIF link like ${bad}`);
+  } catch (e) {
+    ok(e.status === 400, `refuses a GIF link like ${bad}`);
+  }
+}
+await api('DELETE', `/api/favorites/gif/${encodeURIComponent(linkGif.slug)}`, a.token);
+ok((await api('DELETE', `/api/favorites/gif/${encodeURIComponent(fileGif.slug)}`, a.token)).length === 0, 'GIF favorites removed');
 const withBg = await api('PATCH', '/api/users/@me', a.token, { background: 'preset:ranch' });
 ok(withBg.background === 'preset:ranch', 'background preset saved');
 const bgForm = new FormData();

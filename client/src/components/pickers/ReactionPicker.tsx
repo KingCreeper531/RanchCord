@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { toggleReaction } from '../../lib/actions';
+import { useBackLayer } from '../../lib/back';
 import { isMobileDevice } from '../../lib/platform';
 import { placeFloating } from '../ui';
 import { EmojiPicker } from './EmojiPicker';
@@ -21,6 +22,7 @@ export function closeReactionPicker() {
 
 export function ReactionPickerHost() {
   const open = useReactionPicker((s) => s.open);
+  useBackLayer(Boolean(open), closeReactionPicker);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 

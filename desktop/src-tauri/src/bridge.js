@@ -21,6 +21,8 @@
     setBadge: (count) => quiet(invoke('set_badge', { count: Math.max(0, Math.floor(Number(count) || 0)) })),
     flash: () => quiet(invoke('flash')),
     setTitleBarColors: (background, text) => quiet(invoke('set_title_bar_colors', { background: String(background), text: String(text) })),
+    // Your own app name and icon (Settings > Appearance) on the title bar, taskbar and tray. Icon: PNG bytes or null.
+    setBrand: (name, icon) => quiet(invoke('set_brand', { name: String(name ?? ''), icon: icon ? Array.from(icon) : null })),
     lastScreenShareChoice: async () => null,
     setOpenAtLogin: (enabled) => quiet(invoke('set_open_at_login', { enabled: Boolean(enabled) })),
     getOpenAtLogin: () => invoke('get_open_at_login').catch(() => false),

@@ -4,6 +4,7 @@ import { Bomb, CloudArrowUp, Hash, List, Phone, UserPlus, Users, VideoCamera, Us
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../../calls/manager';
 import { askToNukeDm, sendMessage } from '../../lib/actions';
+import { useBackLayer } from '../../lib/back';
 import { isMobileDevice } from '../../lib/platform';
 import { EmojiText } from '../../lib/twemoji';
 import { useCall } from '../../store/call';
@@ -163,6 +164,7 @@ export function ChatView({ channelId }: { channelId: string }) {
   const dragDepth = useRef(0);
 
   useEffect(() => setPicker(null), [channelId]);
+  useBackLayer(picker !== null, () => setPicker(null));
 
   if (!channel) return <div className="chat" />;
   const placeholder = channel.type === 'dm' ? `Message @${recipient?.displayName ?? 'someone'}` : `Message #${channel.name}`;

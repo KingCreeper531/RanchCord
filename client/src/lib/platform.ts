@@ -21,6 +21,8 @@ export interface DesktopBridge {
   setBadge(count: number): void;
   flash(): void;
   setTitleBarColors(background: string, symbols: string): void;
+  /** Your own app name and icon (PNG bytes, or null for the usual one) on the title bar, taskbar and tray. Newer apps only. */
+  setBrand?(name: string, icon: Uint8Array | null): void;
   lastScreenShareChoice(): Promise<ScreenShareChoice | null>;
   setOpenAtLogin?(enabled: boolean): void;
   getOpenAtLogin?(): Promise<boolean>;

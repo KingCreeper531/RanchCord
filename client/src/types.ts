@@ -88,8 +88,12 @@ export interface Attachment {
   height: number | null;
 }
 
+/**
+ * A GIF or sticker in a message (and in favorites). 'klipy' ones come from the GIF picker;
+ * 'media' ones are GIFs people uploaded or linked, with `url` a /files/ path or an https link.
+ */
 export interface KlipyEmbed {
-  kind: 'klipy';
+  kind: 'klipy' | 'media';
   type: 'gif' | 'sticker';
   slug: string;
   title: string;

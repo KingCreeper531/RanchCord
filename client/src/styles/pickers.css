@@ -628,3 +628,50 @@
 .kp-fav-empty svg {
   color: #ffd34d;
 }
+
+/* Touch screens get no hover effects (see vite.config.ts): keep the favorite star visible. */
+@media (hover: none) {
+  .kp-fav {
+    opacity: 0.85;
+    transform: none;
+  }
+}
+
+/* Sticker categories as chips, so the Stickers tab opens straight onto stickers. */
+.kp-chips {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kp-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.kp-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.kp-chip:hover {
+  color: var(--text-1);
+}
+
+.kp-chip.is-active {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+}

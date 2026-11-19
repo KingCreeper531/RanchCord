@@ -4,6 +4,7 @@ import { isFavorite, toggleFavorite } from '../../lib/actions';
 import { errorMessage } from '../../lib/api';
 import { klipyCategories, klipyList, klipyShare, previewOf, toEmbed, type KlipyCategory, type KlipyItem, type KlipyKind } from '../../lib/klipy';
 import { isMobileDevice } from '../../lib/platform';
+import { fileUrl } from '../../lib/server';
 import { useData } from '../../store/data';
 import { ui } from '../../store/ui';
 import type { KlipyEmbed } from '../../types';
@@ -58,9 +59,10 @@ const itemMedia = (item: KlipyItem, kind: KlipyKind): TileMedia => {
 const embedMedia = (e: KlipyEmbed): TileMedia => ({
   key: e.slug,
   title: e.title,
-  video: e.type === 'gif' ? e.mp4 : null,
-  image: e.webp ?? e.url,
-  blur: e.preview,
+  // GIFs people uploaded are stored as paths on this server.
+  video: e.type === 'gif' && e.mp4 ? fileUrl(e.mp4) : null,
+  image: fileUrl(e.webp ?? e.url),
+  blur: e.preview ? fileUrl(e.preview) : null,
   width: e.width,
   height: e.height,
 });
@@ -103,7 +105,10 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
   const favorites = useMemo(() => allFavorites.filter((f) => f.type === embedType), [allFavorites, embedType]);
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [mode, setMode] = useState<'home' | 'results' | 'favorites'>('home');
+  // Stickers open straight onto trending stickers (with categories as chips), so the tab looks like
+  // a sticker sheet rather than a second copy of the GIF menu.
+  const home = kind === 'stickers' ? 'results' : 'home';
+  const [mode, setMode] = useState<'home' | 'results' | 'favorites'>(home);
   const [items, setItems] = useState<KlipyItem[]>([]);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
@@ -184,7 +189,7 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
 
   const pick = (embed: KlipyEmbed | null) => {
     if (!embed || !klipy) return;
-    klipyShare(klipy.key, kind, embed.slug, meId, debounced);
+    if (embed.kind === 'klipy') klipyShare(klipy.key, kind, embed.slug, meId, debounced);
     onPick(embed);
   };
 
@@ -214,13 +219,13 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
   }
 
   const label = kind === 'gifs' ? 'GIFs' : 'stickers';
-  const favPreview = favorites[0] ? favorites[0].preview ?? favorites[0].webp ?? favorites[0].url : null;
+  const favPreview = favorites[0] ? fileUrl(favorites[0].preview ?? favorites[0].webp ?? favorites[0].url) : null;
 
   return (
     <div className="kp">
       <div className="kp-top">
-        {mode !== 'home' && !query && (
-          <button className="kp-back" onClick={() => setMode('home')} aria-label="Back">
+        {mode !== home && !query && (
+          <button className="kp-back" onClick={() => setMode(home)} aria-label="Back">
             <ArrowLeft size={18} weight="bold" />
           </button>
         )}
@@ -228,10 +233,13 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
           <input
             ref={input}
             value={query}
-            placeholder="Search KLIPY"
+            placeholder={`Search ${label}`}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (!e.target.value) setMode('home');
+              if (!e.target.value) {
+                setDebounced('');
+                setMode(home);
+              }
             }}
           />
           {query ? (
@@ -239,7 +247,8 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
               className="ep-search-clear"
               onClick={() => {
                 setQuery('');
-                setMode('home');
+                setDebounced('');
+                setMode(home);
               }}
               aria-label="Clear"
             >
@@ -250,6 +259,43 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
           )}
         </div>
       </div>
+      {kind === 'stickers' && (
+        <div className="kp-chips" role="tablist">
+          <button
+            className={`kp-chip${mode === 'favorites' ? ' is-active' : ''}`}
+            onClick={() => {
+              setQuery('');
+              setDebounced('');
+              setMode('favorites');
+            }}
+          >
+            <Star size={14} weight="fill" /> Favorites
+          </button>
+          <button
+            className={`kp-chip${mode === 'results' && !debounced ? ' is-active' : ''}`}
+            onClick={() => {
+              setQuery('');
+              setDebounced('');
+              setMode('results');
+            }}
+          >
+            <TrendUp size={14} weight="bold" /> Trending
+          </button>
+          {categories?.map((c) => (
+            <button
+              key={c.query}
+              className={`kp-chip${mode === 'results' && debounced === c.query ? ' is-active' : ''}`}
+              onClick={() => {
+                setQuery(c.query);
+                setDebounced(c.query);
+                setMode('results');
+              }}
+            >
+              {c.category}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         ref={scroller}
         className="kp-scroll scroll"

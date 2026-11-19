@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
 import { hasCustomTitleBar } from '../lib/platform';
 import { useBrand } from '../lib/brand';
+import { isMessageSwipe } from '../lib/messageGestures';
+import { useIsMobileLayout } from '../lib/viewport';
 import { ChatView } from './chat/ChatView';
 import { VoiceChannelView } from './calls/VoiceChannelView';
 import { FriendsView } from './FriendsView';
@@ -10,17 +12,6 @@ import { MemberList } from './MemberList';
 import { Rail } from './Rail';
 import { Sidebar } from './Sidebar';
 import { Wallpaper, useHasWallpaper } from './Wallpaper';
-
-function useIsMobile() {
-  const [mobile, setMobile] = useState(() => window.innerWidth <= 760);
-  useEffect(() => {
-    const mq = matchMedia('(max-width: 760px)');
-    const on = () => setMobile(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return mobile;
-}
 
 function TitleBar() {
   const connection = useUi((s) => s.connection);
@@ -79,9 +70,20 @@ function MobileShell() {
   const pane = useUi((s) => s.mobilePane);
   const route = useUi((s) => s.route);
   const mainRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
   const start = useRef<{ x: number; y: number; t: number; locked: 'x' | 'y' | null } | null>(null);
-  const width = typeof window !== 'undefined' ? window.innerWidth : 400;
+  // Measured, so turning the phone (or the notch padding) never leaves the panels misplaced.
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth || window.innerWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const navOffset = width - 56;
   const sideWidth = Math.min(width * 0.86, 340);
   const hasSide = route.kind === 'group';
@@ -89,6 +91,8 @@ function MobileShell() {
   const x = drag ?? base;
 
   const onTouchStart = (e: React.TouchEvent) => {
+    // A swipe whose finger-up got lost (the touched element vanished mid-swipe) must not leave the panels stuck halfway.
+    if (drag !== null) setDrag(null);
     const t = e.touches[0];
     start.current = { x: t.clientX, y: t.clientY, t: Date.now(), locked: null };
   };
@@ -101,7 +105,8 @@ function MobileShell() {
     if (!s.locked) {
       if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
       s.locked = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (s.locked === 'x' && (e.target as HTMLElement).closest('.no-swipe, .kp, .ep, input[type=range], .stage')) s.locked = 'y';
+      // Sliding a message to reply, or swiping inside pickers and sliders, isn't a panel swipe.
+      if (s.locked === 'x' && (isMessageSwipe() || (e.target as HTMLElement).closest('.no-swipe, .kp, .ep, input[type=range], .stage'))) s.locked = 'y';
     }
     if (s.locked !== 'x') return;
     let next = base + dx;
@@ -128,7 +133,7 @@ function MobileShell() {
   };
 
   return (
-    <div className="app-body" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
+    <div ref={bodyRef} className="app-body" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
       <div className="m-nav" style={{ visibility: x > 0 ? 'visible' : 'hidden' }}>
         <Rail />
         <Sidebar />
@@ -154,7 +159,7 @@ function MobileShell() {
 }
 
 export function AppShell() {
-  const mobile = useIsMobile();
+  const mobile = useIsMobileLayout();
   const wallpaper = useHasWallpaper();
   return (
     <div className={`app${mobile ? ' app-mobile' : ''}${wallpaper ? ' has-wallpaper' : ''}`}>

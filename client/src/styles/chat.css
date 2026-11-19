@@ -1719,3 +1719,66 @@ img.emoji-tw {
 .msg-nuke .msg-system-icon {
   color: var(--danger);
 }
+
+/* ================= touch screens ================= */
+/* Touch screens get no hover effects (see vite.config.ts), so show what hovering would reveal. */
+@media (hover: none) {
+  .reaction-add,
+  .embed-gif-tag,
+  .md-codeblock-copy {
+    opacity: 1;
+  }
+  /* Up/down scrolls the chat; sideways is ours (swipe to reply). */
+  .msg {
+    touch-action: pan-y;
+  }
+}
+
+/* iPhones: holding a message opens its menu instead of selecting text or popping up the image menu. */
+html.is-ios .msg {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html.is-ios .msg a {
+  -webkit-touch-callout: default;
+}
+
+/* Swipe a message to the right to reply. */
+.msg.is-swiping {
+  z-index: 1;
+}
+
+.msg-swipe-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 32px;
+  height: 32px;
+  margin-top: -16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-float);
+  color: var(--text-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: background-color var(--dur-1), color var(--dur-1);
+}
+
+.msg-swipe-icon.is-ready {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+/* Pictures and GIFs open full screen; GIFs anyone sends can be starred. */
+.att-image,
+.embed-image {
+  position: relative;
+}
+
+.embed-gif {
+  cursor: zoom-in;
+}

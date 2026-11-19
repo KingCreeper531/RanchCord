@@ -277,20 +277,263 @@ export function SwitcherModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ---------------- lightbox ---------------- */
+/* ---------------- full-screen viewer for pictures and GIFs ---------------- */
 
-export function LightboxModal({ src, filename, onClose }: { src: string; filename?: string; onClose: () => void }) {
+interface ViewerProps {
+  src: string;
+  filename?: string;
+  /** 'video' for GIFs that come as a looping mp4. */
+  kind?: 'image' | 'video';
+  poster?: string | null;
+  /** Where "Open original" leads, when that isn't `src`. */
+  original?: string;
+  /** False for media that isn't a file on this server, so there's nothing to download. */
+  download?: boolean;
+  onClose: () => void;
+}
+
+const MAX_ZOOM = 5;
+
+interface Gesture {
+  kind: 'pan' | 'pinch' | 'dismiss';
+  x: number;
+  y: number;
+  viewX: number;
+  viewY: number;
+  scale: number;
+  dist: number;
+  moved: boolean;
+  onMedia: boolean;
+}
+
+/**
+ * Pinch, double-tap or scroll to zoom, drag to look around, swipe down (or tap outside) to close.
+ * Tapping the picture shows or hides the buttons.
+ */
+export function LightboxModal({ src, filename, kind = 'image', poster, original, download = true, onClose }: ViewerProps) {
+  const stage = useRef<HTMLDivElement>(null);
+  const media = useRef<HTMLImageElement | HTMLVideoElement | null>(null);
+  const view = useRef({ scale: 1, x: 0, y: 0 });
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<Gesture | null>(null);
+  const lastTap = useRef({ t: 0, x: 0, y: 0 });
+  const tapTimer = useRef(0);
+  const [bar, setBar] = useState(true);
+
+  const apply = (animate: boolean, fade = 1) => {
+    const el = media.current;
+    if (el) {
+      const { scale, x, y } = view.current;
+      el.style.transition = animate ? 'transform 220ms cubic-bezier(.22,.8,.24,1)' : 'none';
+      el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+    }
+    stage.current?.style.setProperty('--lb-fade', String(fade));
+  };
+
+  // Keeps a zoomed picture from sliding off the screen.
+  const clamp = () => {
+    const el = media.current;
+    const st = stage.current;
+    if (!el || !st) return;
+    const v = view.current;
+    const maxX = Math.max(0, (el.offsetWidth * v.scale - st.clientWidth) / 2);
+    const maxY = Math.max(0, (el.offsetHeight * v.scale - st.clientHeight) / 2);
+    v.x = Math.max(-maxX, Math.min(maxX, v.x));
+    v.y = Math.max(-maxY, Math.min(maxY, v.y));
+  };
+
+  /** Zooms to `scale` while the spot under (cx, cy) stays put. */
+  const zoomAt = (scale: number, cx: number, cy: number, animate: boolean) => {
+    const st = stage.current;
+    if (!st) return;
+    const r = st.getBoundingClientRect();
+    const px = cx - (r.left + r.width / 2);
+    const py = cy - (r.top + r.height / 2);
+    const v = view.current;
+    const next = Math.max(1, Math.min(MAX_ZOOM, scale));
+    v.x = px - ((px - v.x) / v.scale) * next;
+    v.y = py - ((py - v.y) / v.scale) * next;
+    v.scale = next;
+    if (next === 1) {
+      v.x = 0;
+      v.y = 0;
+    }
+    clamp();
+    apply(animate);
+  };
+
+  useEffect(() => {
+    const st = stage.current;
+    if (!st) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomAt(view.current.scale * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY, false);
+    };
+    const onResize = () => {
+      clamp();
+      apply(false);
+    };
+    st.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('resize', onResize);
+    return () => {
+      st.removeEventListener('wheel', onWheel);
+      window.removeEventListener('resize', onResize);
+      clearTimeout(tapTimer.current);
+    };
+  }, []);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button > 0) return;
+    stage.current?.setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pts = [...pointers.current.values()];
+    const v = view.current;
+    const onMedia = Boolean(media.current?.contains(e.target as Node));
+    if (pts.length === 2) {
+      const [a, b] = pts;
+      gesture.current = { kind: 'pinch', x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, viewX: v.x, viewY: v.y, scale: v.scale, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, moved: true, onMedia };
+    } else if (pts.length === 1) {
+      gesture.current = { kind: 'pan', x: e.clientX, y: e.clientY, viewX: v.x, viewY: v.y, scale: v.scale, dist: 0, moved: false, onMedia };
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    if (!g) return;
+    const v = view.current;
+    const pts = [...pointers.current.values()];
+    if (g.kind === 'pinch') {
+      if (pts.length < 2) return;
+      const [a, b] = pts;
+      v.scale = g.scale;
+      v.x = g.viewX;
+      v.y = g.viewY;
+      zoomAt(g.scale * (Math.hypot(a.x - b.x, a.y - b.y) / g.dist), g.x, g.y, false);
+      v.x += (a.x + b.x) / 2 - g.x;
+      v.y += (a.y + b.y) / 2 - g.y;
+      clamp();
+      apply(false);
+      return;
+    }
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (!g.moved && Math.hypot(dx, dy) < 8) return;
+    g.moved = true;
+    if (v.scale > 1.01) {
+      v.x = g.viewX + dx;
+      v.y = g.viewY + dy;
+      clamp();
+      apply(false);
+    } else if (e.pointerType !== 'mouse') {
+      // Not zoomed in: drag it away to close, like a phone's photo app.
+      g.kind = 'dismiss';
+      v.x = 0;
+      v.y = dy;
+      apply(false, Math.max(0.15, 1 - Math.abs(dy) / 380));
+    }
+  };
+
+  const endPointer = (e: React.PointerEvent, cancelled: boolean) => {
+    if (!pointers.current.delete(e.pointerId)) return;
+    const g = gesture.current;
+    const v = view.current;
+    const rest = [...pointers.current.values()];
+    if (g?.kind === 'pinch') {
+      if (rest.length === 1) {
+        // One finger still down: carry on panning from where it is, without a jump.
+        gesture.current = { kind: 'pan', x: rest[0].x, y: rest[0].y, viewX: v.x, viewY: v.y, scale: v.scale, dist: 0, moved: true, onMedia: true };
+      } else if (rest.length === 0) {
+        gesture.current = null;
+        if (v.scale < 1.05) Object.assign(v, { scale: 1, x: 0, y: 0 });
+        clamp();
+        apply(true);
+      }
+      return;
+    }
+    gesture.current = null;
+    if (!g || cancelled) {
+      if (g?.kind === 'dismiss') {
+        v.y = 0;
+        apply(true);
+      }
+      return;
+    }
+    if (g.kind === 'dismiss') {
+      if (Math.abs(v.y) > 110) return onClose();
+      v.y = 0;
+      apply(true);
+      return;
+    }
+    if (g.moved) return;
+
+    // A tap. Two quick taps zoom in or back out.
+    const now = Date.now();
+    const last = lastTap.current;
+    if (now - last.t < 300 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 40) {
+      clearTimeout(tapTimer.current);
+      lastTap.current = { t: 0, x: 0, y: 0 };
+      if (v.scale > 1.01) {
+        Object.assign(v, { scale: 1, x: 0, y: 0 });
+        apply(true);
+      } else zoomAt(2.5, e.clientX, e.clientY, true);
+      return;
+    }
+    lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+    const single = () => {
+      if (!g.onMedia && view.current.scale <= 1.01) onClose();
+      else if (g.onMedia) setBar((b) => !b);
+    };
+    // A mouse click outside the picture closes straight away; taps wait a moment for a second tap.
+    if (e.pointerType === 'mouse' && !g.onMedia) single();
+    else tapTimer.current = window.setTimeout(single, 260);
+  };
+
   return (
-    <div className="lightbox" onClick={onClose}>
-      <img src={src} alt={filename ?? ''} onClick={(e) => e.stopPropagation()} draggable={false} />
-      <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+    <div className="lightbox" role="dialog" aria-label={filename || 'Picture'}>
+      <div
+        ref={stage}
+        className="lightbox-stage"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => endPointer(e, false)}
+        onPointerCancel={(e) => endPointer(e, true)}
+      >
+        {kind === 'video' ? (
+          <video
+            ref={(el) => {
+              media.current = el;
+            }}
+            src={src}
+            poster={poster ?? undefined}
+            autoPlay
+            loop
+            muted
+            playsInline
+            disablePictureInPicture
+          />
+        ) : (
+          <img
+            ref={(el) => {
+              media.current = el;
+            }}
+            src={src}
+            alt={filename ?? ''}
+            draggable={false}
+          />
+        )}
+      </div>
+      <div className={`lightbox-bar${bar ? '' : ' is-hidden'}`}>
         <span className="truncate">{filename}</span>
-        <a href={src} target="_blank" rel="noreferrer" className="lightbox-btn" aria-label="Open original">
+        <a href={original ?? src} target="_blank" rel="noreferrer" className="lightbox-btn" aria-label="Open original">
           <ArrowSquareOut size={20} />
         </a>
-        <a href={downloadUrl(src)} download={filename} className="lightbox-btn" aria-label="Download">
-          <DownloadSimple size={20} />
-        </a>
+        {download && (
+          <a href={downloadUrl(src)} download={filename} className="lightbox-btn" aria-label="Download">
+            <DownloadSimple size={20} />
+          </a>
+        )}
         <button className="lightbox-btn" onClick={onClose} aria-label="Close">
           <X size={20} />
         </button>

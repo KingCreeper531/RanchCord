@@ -118,7 +118,8 @@ html[data-theme='glass'] .composer-box {
 }
 
 html[data-theme='glass'] .composer:focus-within .composer-box {
-  box-shadow: var(--glass-edge), 0 0 0 2px var(--brand-line), 0 8px 24px rgba(0, 0, 0, 0.18);
+  /* A soft light edge instead of a green ring, so it suits any background. */
+  box-shadow: var(--glass-edge), 0 0 0 1.5px rgba(255, 255, 255, 0.22), 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 html[data-theme='glass'] .composer.has-reply .composer-box {

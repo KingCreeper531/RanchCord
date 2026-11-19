@@ -49,7 +49,20 @@ const klipyUrl = z
     }
   }, 'Unsupported media link');
 
-export const EmbedSchema = z.object({
+/** A file on this server (an uploaded GIF) or any https link. */
+const mediaUrl = z
+  .string()
+  .max(2000)
+  .refine((value) => {
+    if (value.startsWith('/files/')) return /^\/files\/[\w\-./%]+$/.test(value) && !value.includes('..');
+    try {
+      return new URL(value).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'Unsupported media link');
+
+const KlipyEmbedSchema = z.object({
   kind: z.literal('klipy'),
   type: z.enum(['gif', 'sticker']),
   slug: z.string().max(300),
@@ -61,6 +74,22 @@ export const EmbedSchema = z.object({
   width: z.number().int().min(1).max(20000),
   height: z.number().int().min(1).max(20000),
 });
+
+/** A GIF someone uploaded or linked, sent again from favorites. */
+const MediaEmbedSchema = z.object({
+  kind: z.literal('media'),
+  type: z.literal('gif'),
+  slug: z.string().max(300),
+  title: z.string().max(300).default(''),
+  url: mediaUrl,
+  mp4: z.null().default(null),
+  webp: z.null().default(null),
+  preview: z.null().default(null),
+  width: z.number().int().min(1).max(20000),
+  height: z.number().int().min(1).max(20000),
+});
+
+export const EmbedSchema = z.discriminatedUnion('kind', [KlipyEmbedSchema, MediaEmbedSchema]);
 
 const MessageSchema = z.object({
   content: z.string().max(8000, 'That message is too long (8000 characters max)').default(''),

@@ -790,6 +790,12 @@
 .app-mobile .app-body {
   position: relative;
   overflow: hidden;
+  /* Not even scrollable by code. If focusing something or "scroll into view" nudged this sideways,
+     every panel would sit in the wrong place with taps landing on the wrong thing. */
+  overflow: clip;
+  /* Phones held sideways: keep the panels out from under the notch and the side navigation bar. */
+  margin-left: var(--safe-left);
+  margin-right: var(--safe-right);
 }
 
 .m-nav {

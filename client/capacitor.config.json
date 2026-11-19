@@ -12,7 +12,8 @@
   },
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#151815"
+    "backgroundColor": "#151815",
+    "scrollEnabled": false
   },
   "plugins": {
     "SplashScreen": {

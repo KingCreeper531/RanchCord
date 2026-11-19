@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { ArrowDown, Hash, UserPlus } from '@phosphor-icons/react';
 import { ackChannel, blockUser, loadLatest, loadOlder, openDm, removeRelationship, sendFriendRequest } from '../../lib/actions';
 import { formatDate, sameDay } from '../../lib/format';
+import { attachMessageGestures } from '../../lib/messageGestures';
 import { dmRecipient, emptyMessages, isUnread, useData } from '../../store/data';
 import { PERM, can } from '../../lib/perms';
 import { ui, useUi } from '../../store/ui';
@@ -98,6 +99,26 @@ export function MessageList({ channelId }: { channelId: string }) {
   const [showJump, setShowJump] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [newSince, setNewSince] = useState<string | null>(null);
+  const perms = useRef({ meId, canManage });
+  perms.current = { meId, canManage };
+
+  // Touch screens: swipe a message right to reply; on iPhones, hold it for its menu.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !('ontouchstart' in window)) return;
+    return attachMessageGestures(el, {
+      channelId,
+      onHold: (messageId) => {
+        const m = useData.getState().messages[channelId]?.list.find((x) => x.id === messageId);
+        if (!m) return;
+        const { meId: me, canManage: manage } = perms.current;
+        const mine = m.author.id === me;
+        const canEdit = mine && !m.pending && !m.failed && Boolean(m.content || m.attachments.length);
+        const canDelete = !m.pending && (mine || manage);
+        ui.openModal('messageActions', { channelId, messageId, canEdit, canDelete });
+      },
+    });
+  }, [channelId]);
 
   // Remember where the "new messages" line goes when the channel opens.
   useEffect(() => {
@@ -169,10 +190,13 @@ export function MessageList({ channelId }: { channelId: string }) {
     let cancelled = false;
     (async () => {
       for (let i = 0; i < 25 && !cancelled; i++) {
-        const el = scroller.current?.querySelector(`[data-mid="${jumpTo.messageId}"]`);
-        if (el) {
+        const box = scroller.current;
+        const el = box?.querySelector<HTMLElement>(`[data-mid="${jumpTo.messageId}"]`);
+        if (box && el) {
           atBottom.current = false;
-          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          // Scroll only the message list. scrollIntoView would also nudge the panels around it.
+          const offset = el.getBoundingClientRect().top - box.getBoundingClientRect().top;
+          box.scrollTo({ top: box.scrollTop + offset - (box.clientHeight - el.offsetHeight) / 2, behavior: 'smooth' });
           setHighlight(jumpTo.messageId);
           setTimeout(() => !cancelled && setHighlight(null), 1800);
           return;

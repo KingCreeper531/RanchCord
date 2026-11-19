@@ -11,7 +11,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Mutex,
     },
     time::Duration,
@@ -25,7 +25,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     webview::{NewWindowResponse, PageLoadEvent},
     window::Color,
-    AppHandle, Manager, Theme, Url, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, Theme, Url, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 use tauri_plugin_opener::OpenerExt;
@@ -33,6 +33,7 @@ use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_window_state::StateFlags;
 
 const MAIN: &str = "main";
+const DEFAULT_NAME: &str = "RanchCord";
 #[cfg(windows)]
 const APP_ID: &str = "com.ranchcord.app";
 /// Tauri serves the app's own files (the launcher) from this address on Windows.
@@ -48,6 +49,7 @@ const SERVER_PERMISSIONS: &[&str] = &[
     "allow-set-badge",
     "allow-flash",
     "allow-set-title-bar-colors",
+    "allow-set-brand",
     "allow-notify",
     "allow-set-open-at-login",
     "allow-get-open-at-login",
@@ -67,6 +69,11 @@ struct AppState {
     quitting: AtomicBool,
     /// Set once the window has been shown (or was started hidden in the tray).
     shown: AtomicBool,
+    /// The app name shown in the title bar and tray (this person's own, if they set one).
+    brand_name: Mutex<String>,
+    unread: AtomicU32,
+    /// The tray's "Open …" and "Quit …" items, renamed along with the app.
+    tray_items: Mutex<Option<(MenuItem<Wry>, MenuItem<Wry>)>>,
 }
 
 /* ---------------- settings ---------------- */
@@ -317,13 +324,56 @@ fn change_server(window: WebviewWindow) {
 fn set_badge(app: AppHandle, window: WebviewWindow, count: u32) {
     let badge = if count > 0 { Image::from_bytes(BADGE_PNG).ok() } else { None };
     let _ = window.set_overlay_icon(badge);
-    if let Some(tray) = app.tray_by_id("main") {
-        let tip = if count > 0 { format!("RanchCord ({count} unread)") } else { "RanchCord".to_string() };
-        let _ = tray.set_tooltip(Some(tip));
-    }
+    app.state::<AppState>().unread.store(count, Ordering::SeqCst);
+    update_tray_tooltip(&app);
     if count > 0 && !window.is_focused().unwrap_or(true) {
         let _ = window.request_user_attention(Some(UserAttentionType::Informational));
     }
+}
+
+fn update_tray_tooltip(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let name = state.brand_name.lock().map(|n| n.clone()).unwrap_or_else(|_| DEFAULT_NAME.to_string());
+    let count = state.unread.load(Ordering::SeqCst);
+    if let Some(tray) = app.tray_by_id("main") {
+        let tip = if count > 0 { format!("{name} ({count} unread)") } else { name };
+        let _ = tray.set_tooltip(Some(tip));
+    }
+}
+
+/// The app name and icon this person picked in RanchCord (Settings > Appearance), for the window
+/// title, taskbar and tray. It's only on this PC. An empty name or no icon means RanchCord's own.
+#[tauri::command]
+fn set_brand(app: AppHandle, window: WebviewWindow, name: String, icon: Option<Vec<u8>>) {
+    let name: String = name.trim().chars().take(40).collect();
+    let name = if name.is_empty() { DEFAULT_NAME.to_string() } else { name };
+    let _ = window.set_title(&name);
+    let custom = icon.and_then(|bytes| Image::from_bytes(&bytes).ok().map(|img| img.to_owned()));
+    match &custom {
+        Some(img) => {
+            let _ = window.set_icon(img.clone());
+        }
+        None => {
+            if let Some(default) = app.default_window_icon() {
+                let _ = window.set_icon(default.clone());
+            }
+        }
+    }
+    if let Some(tray) = app.tray_by_id("main") {
+        let tray_icon = custom.or_else(|| Image::from_bytes(TRAY_PNG).ok().map(|img| img.to_owned()));
+        let _ = tray.set_icon(tray_icon);
+    }
+    let state = app.state::<AppState>();
+    if let Ok(items) = state.tray_items.lock() {
+        if let Some((open, quit)) = items.as_ref() {
+            let _ = open.set_text(format!("Open {name}"));
+            let _ = quit.set_text(format!("Quit {name}"));
+        }
+    }
+    if let Ok(mut current) = state.brand_name.lock() {
+        *current = name;
+    }
+    update_tray_tooltip(&app);
 }
 
 #[tauri::command]
@@ -465,6 +515,9 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    if let Ok(mut items) = app.state::<AppState>().tray_items.lock() {
+        *items = Some((open, quit));
+    }
     Ok(())
 }
 
@@ -522,6 +575,7 @@ fn main() {
             set_badge,
             flash,
             set_title_bar_colors,
+            set_brand,
             notify,
             set_open_at_login,
             get_open_at_login,
@@ -537,6 +591,9 @@ fn main() {
                 remote_allowed: Mutex::new(HashSet::new()),
                 quitting: AtomicBool::new(false),
                 shown: AtomicBool::new(start_hidden),
+                brand_name: Mutex::new(DEFAULT_NAME.to_string()),
+                unread: AtomicU32::new(0),
+                tray_items: Mutex::new(None),
             });
             if let Some(url) = &server {
                 allow_remote(&handle, &origin_of(url));

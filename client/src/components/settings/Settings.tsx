@@ -43,6 +43,8 @@ import { desktop, isDesktopApp, isMobileDevice, isNative } from '../../lib/platf
 import { clearServerBase, fileUrl, serverBase } from '../../lib/server';
 import { EmojiText } from '../../lib/twemoji';
 import { useBrand } from '../../lib/brand';
+import { useBackLayer } from '../../lib/back';
+import { useIsMobileLayout } from '../../lib/viewport';
 import { useCall } from '../../store/call';
 import { useData } from '../../store/data';
 import { type ThemePref, ui, useUi } from '../../store/ui';
@@ -85,6 +87,9 @@ const NAV: { group: string; items: { id: Tab; label: string; icon: React.ReactNo
 
 export function SettingsModal({ tab: initial, onClose }: { tab?: Tab; onClose: () => void }) {
   const [tab, setTab] = useState<Tab | null>(isMobileDevice && !initial ? null : initial ?? 'account');
+  // On phones a settings page covers the list of pages; Back returns to the list first.
+  const phoneLayout = useIsMobileLayout();
+  useBackLayer(phoneLayout && tab !== null, () => setTab(null));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.querySelector('.ui-modal-layer + .ui-modal-layer')) onClose();

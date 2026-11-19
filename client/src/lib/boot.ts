@@ -4,19 +4,33 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import '../calls/manager';
 import { data, useData } from '../store/data';
 import { applyFontSize, applyTheme, resolvedTheme, ui, useUi } from '../store/ui';
-import { ackChannel } from './actions';
+import { ackChannel, refreshBootstrap } from './actions';
+import { setupBack } from './back';
 import { isMobileDevice, isNative } from './platform';
 import { emit } from './socket';
 import { unlockAudio } from './sound';
+import { settleViewport, setupViewport } from './viewport';
+
+/** When the app comes back after this long in the background, reload everything so nothing is stale. */
+const RESYNC_AFTER_MS = 30_000;
 
 /** One-time setup: theme, focus tracking, idle detection, phone back button, keyboard. */
 export function initPlatform() {
   applyTheme();
   applyFontSize();
+  setupViewport();
 
-  // Hash routing (back/forward buttons, notification links).
-  window.addEventListener('popstate', () => ui.syncFromHash());
+  // Hash routing (notification links). Back/forward and the phone back button live in back.ts.
+  setupBack();
   window.addEventListener('hashchange', () => ui.syncFromHash());
+
+  // Phones pause the app in the background and can miss live updates (new emojis, sounds,
+  // favorites, messages) while asleep. Catch up as soon as it's opened again.
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > RESYNC_AFTER_MS && useData.getState().me) void refreshBootstrap();
+  });
 
   // Focus & visibility: drives read receipts, notifications and auto-idle.
   let idleTimer: number | undefined;
@@ -72,21 +86,16 @@ function setupNative() {
     if (s.prefs.theme !== prev.prefs.theme) void StatusBar.setStyle({ style: resolvedTheme() === 'light' ? Style.Light : Style.Dark }).catch(() => {});
   });
 
-  // Android back button: close things first, then go back to the menu, then leave the app.
-  void CapApp.addListener('backButton', () => {
-    const u = useUi.getState();
-    if (u.popover) return ui.closePopover();
-    if (u.modals.length) return ui.closeModal();
-    if (u.editing) return ui.setEditing(null);
-    if (u.mobilePane !== 'nav') return ui.setMobilePane('nav');
-    void CapApp.minimizeApp();
-  });
-
+  let pausedAt = 0;
   void CapApp.addListener('appStateChange', ({ isActive }) => {
     useUi.setState({ visible: isActive, focused: isActive });
     emit('presence:afk', !isActive);
+    if (!isActive) pausedAt = Date.now();
+    else if (pausedAt && Date.now() - pausedAt > RESYNC_AFTER_MS && useData.getState().me) void refreshBootstrap();
   });
 
   void Keyboard.addListener('keyboardWillShow', () => document.documentElement.classList.add('keyboard-open')).catch(() => {});
   void Keyboard.addListener('keyboardWillHide', () => document.documentElement.classList.remove('keyboard-open')).catch(() => {});
+  // The web view can stay scrolled up after the keyboard leaves, shifting everything off its taps.
+  void Keyboard.addListener('keyboardDidHide', () => setTimeout(settleViewport, 50)).catch(() => {});
 }

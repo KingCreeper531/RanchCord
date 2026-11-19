@@ -50,17 +50,43 @@ function hash(s: string) {
 
 /* ---------------- attachments ---------------- */
 
+/** Enter or Space on something that acts like a button. */
+const onActivate = (fn: () => void) => (e: React.KeyboardEvent) => {
+  if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  fn();
+};
+
+/** A GIF someone uploaded, as something that can go in favorites. */
+const attachmentGif = (a: Attachment): KlipyEmbed => ({
+  kind: 'media',
+  type: 'gif',
+  slug: `att:${a.id}`,
+  title: a.filename,
+  url: a.url,
+  mp4: null,
+  webp: null,
+  preview: null,
+  width: a.width || 300,
+  height: a.height || 300,
+});
+
 function ImageAttachment({ a, single }: { a: Attachment; single: boolean }) {
   const size = a.width && a.height ? fit(a.width, a.height, single ? 520 : 300, single ? 380 : 300) : { width: 300, height: 220 };
+  const open = () => ui.openModal('lightbox', { src: fileUrl(a.url), filename: a.filename });
   return (
-    <button
+    <div
       className="att-image"
+      role="button"
+      tabIndex={0}
       style={{ width: size.width, aspectRatio: `${size.width} / ${size.height}` } as CSSProperties}
-      onClick={() => ui.openModal('lightbox', { src: fileUrl(a.url), filename: a.filename, width: a.width, height: a.height })}
+      onClick={open}
+      onKeyDown={onActivate(open)}
       aria-label={`Open ${a.filename}`}
     >
       <img src={fileUrl(a.url)} alt={a.filename} loading="lazy" decoding="async" draggable={false} />
-    </button>
+      {a.contentType === 'image/gif' && <FavoriteButton e={attachmentGif(a)} />}
+    </div>
   );
 }
 
@@ -145,18 +171,33 @@ function KlipyCard({ e }: { e: KlipyEmbed }) {
     const s = fit(e.width, e.height, 180, 180);
     return (
       <div className="embed-sticker-wrap" style={{ width: s.width, height: s.height }}>
-        <img className="embed-sticker" src={e.webp ?? e.url} alt={e.title || 'Sticker'} title={e.title} style={{ width: s.width, height: s.height }} loading="lazy" draggable={false} />
+        <img className="embed-sticker" src={fileUrl(e.webp ?? e.url)} alt={e.title || 'Sticker'} title={e.title} style={{ width: s.width, height: s.height }} loading="lazy" draggable={false} />
         <FavoriteButton e={e} />
       </div>
     );
   }
   const s = fit(e.width, e.height, 400, 320);
+  const open = () =>
+    ui.openModal(
+      'lightbox',
+      e.mp4
+        ? { src: fileUrl(e.mp4), kind: 'video', poster: e.preview ? fileUrl(e.preview) : null, filename: e.title || 'GIF', original: fileUrl(e.url), download: false }
+        : { src: fileUrl(e.webp ?? e.url), filename: e.title || 'GIF', original: fileUrl(e.url), download: e.kind === 'media' && e.url.startsWith('/files/') },
+    );
   return (
-    <div className="embed-gif" style={{ width: s.width, aspectRatio: `${s.width} / ${s.height}` }} title={e.title}>
+    <div
+      className="embed-gif"
+      role="button"
+      tabIndex={0}
+      style={{ width: s.width, aspectRatio: `${s.width} / ${s.height}` }}
+      title={e.title}
+      onClick={open}
+      onKeyDown={onActivate(open)}
+    >
       {e.mp4 ? (
-        <video src={e.mp4} autoPlay loop muted playsInline poster={e.preview ?? undefined} />
+        <video src={fileUrl(e.mp4)} autoPlay loop muted playsInline poster={e.preview ? fileUrl(e.preview) : undefined} />
       ) : (
-        <img src={e.webp ?? e.url} alt={e.title || 'GIF'} loading="lazy" draggable={false} />
+        <img src={fileUrl(e.webp ?? e.url)} alt={e.title || 'GIF'} loading="lazy" draggable={false} />
       )}
       <span className="embed-gif-tag">GIF</span>
       <FavoriteButton e={e} />
@@ -232,6 +273,49 @@ function InviteCard({ code }: { code: string }) {
 const IMAGE_URL = /https?:\/\/[^\s<>]+\.(?:png|jpe?g|gif|webp|avif)(?:\?[^\s<>]*)?(?=$|[\s<>])/gi;
 const INVITE_URL = /https?:\/\/[^\s<>]+\/invite\/([A-Za-z0-9]{6,16})\b/g;
 
+/** A picture from a link in a message. Linked GIFs can be starred too. */
+function LinkImage({ src }: { src: string }) {
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const gif = /\.gif(?:$|[?#])/i.test(src);
+  const open = () => {
+    const name = src.split(/[?#]/)[0].split('/').pop() ?? '';
+    let filename = name;
+    try {
+      filename = decodeURIComponent(name);
+    } catch {
+      /* keep it as it is */
+    }
+    ui.openModal('lightbox', { src, filename, download: false });
+  };
+  return (
+    <div className="embed-image" role="button" tabIndex={0} onClick={open} onKeyDown={onActivate(open)}>
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onLoad={(ev) => setSize({ width: ev.currentTarget.naturalWidth || 300, height: ev.currentTarget.naturalHeight || 300 })}
+      />
+      {gif && (
+        <FavoriteButton
+          e={{
+            kind: 'media',
+            type: 'gif',
+            slug: `url:${hash(src).toString(36)}${src.length.toString(36)}`,
+            title: '',
+            url: src,
+            mp4: null,
+            webp: null,
+            preview: null,
+            width: size?.width ?? 300,
+            height: size?.height ?? 300,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 function LinkEmbeds({ content }: { content: string }) {
   const { images, invites } = useMemo(() => {
     if (!content.includes('http')) return { images: [], invites: [] };
@@ -248,9 +332,7 @@ function LinkEmbeds({ content }: { content: string }) {
         <InviteCard key={code} code={code} />
       ))}
       {images.map((src) => (
-        <button key={src} className="embed-image" onClick={() => ui.openModal('lightbox', { src, filename: src.split('/').pop() })}>
-          <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" />
-        </button>
+        <LinkImage key={src} src={src} />
       ))}
     </div>
   );

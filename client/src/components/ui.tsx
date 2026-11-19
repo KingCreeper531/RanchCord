@@ -17,6 +17,7 @@ import { create } from 'zustand';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from '@phosphor-icons/react';
 import { fileUrl } from '../lib/server';
+import { useBackLayer } from '../lib/back';
 import { useBrand } from '../lib/brand';
 import { initials } from '../lib/format';
 import { isMobileDevice } from '../lib/platform';
@@ -337,6 +338,7 @@ export function MenuHost() {
   const open = useMenu((s) => s.open);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  useBackLayer(Boolean(open), closeMenu);
 
   useLayoutEffect(() => {
     if (!open || !ref.current) {

@@ -782,3 +782,11 @@
   height: 20px;
   margin: 0;
 }
+
+/* Touch screens get no hover effects (see vite.config.ts), so keep these tools visible there. */
+@media (hover: none) {
+  .tile-tools,
+  .sb-tools {
+    opacity: 1;
+  }
+}
