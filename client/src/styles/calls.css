@@ -790,3 +790,28 @@
     opacity: 1;
   }
 }
+
+/* Small arrow on the mic, camera and deafen buttons to pick which device to use */
+.call-ctrl-wrap {
+  position: relative;
+  display: inline-grid;
+}
+
+.call-ctrl-more {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2b302a;
+  color: #f2f4ee;
+  border: 2px solid var(--stage-bg, #111311);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.call-ctrl-more:hover {
+  background: #3a4139;
+}

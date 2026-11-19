@@ -36,6 +36,7 @@ import { ackChannel, askToNukeDm, closeDm, deleteChannel, leaveGroup, updateProf
 import { formatFriendCode } from '../lib/format';
 import { errorMessage } from '../lib/api';
 import { channelLayout, deleteCategory, moveChannelToCategory, saveLayout } from '../lib/groupAdmin';
+import { openDeviceMenu } from './calls/DeviceMenu';
 import { canShareScreen, isMobileDevice } from '../lib/platform';
 import { EmojiText } from '../lib/twemoji';
 import { PERM, can, memberColor } from '../lib/perms';
@@ -728,10 +729,26 @@ export function UserPanel() {
           <span className="user-panel-sub truncate">{me.customStatus ? <EmojiText text={me.customStatus} /> : presenceLabel[presence] || `@${me.username}`}</span>
         </span>
       </button>
-      <IconButton label={muted ? 'Unmute' : 'Mute'} className={muted ? 'is-off' : ''} onClick={() => call.toggleMute()}>
+      <IconButton
+        label={muted ? 'Unmute' : 'Mute'}
+        className={muted ? 'is-off' : ''}
+        onClick={() => call.toggleMute()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          void openDeviceMenu('input', e);
+        }}
+      >
         {muted ? <MicrophoneSlash size={19} weight="fill" /> : <Microphone size={19} />}
       </IconButton>
-      <IconButton label={deafened ? 'Undeafen' : 'Deafen'} className={deafened ? 'is-off' : ''} onClick={() => call.toggleDeafen()}>
+      <IconButton
+        label={deafened ? 'Undeafen' : 'Deafen'}
+        className={deafened ? 'is-off' : ''}
+        onClick={() => call.toggleDeafen()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          void openDeviceMenu('output', e);
+        }}
+      >
         {deafened ? <DeafIcon /> : <Headphones size={19} />}
       </IconButton>
       <IconButton label="Settings" onClick={() => ui.openModal('settings')}>

@@ -1,6 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowsIn,
+  CaretUp,
   ArrowsOut,
   CornersOut,
   Headphones,
@@ -25,6 +26,7 @@ import { displayNameIn, dmRecipient, useData } from '../../store/data';
 import { ui, useUi } from '../../store/ui';
 import { Avatar, Spinner, Tooltip, openMenu } from '../ui';
 import { DeafIcon, MobileMenuButtonInline } from './bits';
+import { canPickOutput, openDeviceMenu, type DeviceKind } from './DeviceMenu';
 
 interface TileSpec {
   key: string;
@@ -178,7 +180,7 @@ function Controls({ channelId }: { channelId: string }) {
   const screen = useCall((s) => s.screen);
   return (
     <div className="call-controls">
-      <CtrlButton label={camera ? 'Turn off camera' : 'Turn on camera'} on={camera} onClick={() => void call.toggleCamera()}>
+      <CtrlButton label={camera ? 'Turn off camera' : 'Turn on camera'} on={camera} onClick={() => void call.toggleCamera()} menu="camera">
         {camera ? <VideoCamera size={22} weight="fill" /> : <VideoCameraSlash size={22} weight="fill" />}
       </CtrlButton>
       {canShareScreen && (
@@ -190,10 +192,10 @@ function Controls({ channelId }: { channelId: string }) {
         <MusicNotes size={22} weight="fill" />
       </CtrlButton>
       <span className="call-controls-sep" />
-      <CtrlButton label={muted ? 'Unmute' : 'Mute'} off={muted || deafened} onClick={() => call.toggleMute()}>
+      <CtrlButton label={muted ? 'Unmute' : 'Mute'} off={muted || deafened} onClick={() => call.toggleMute()} menu="input">
         {muted || deafened ? <MicrophoneSlash size={22} weight="fill" /> : <Microphone size={22} weight="fill" />}
       </CtrlButton>
-      <CtrlButton label={deafened ? 'Undeafen' : 'Deafen'} off={deafened} onClick={() => call.toggleDeafen()}>
+      <CtrlButton label={deafened ? 'Undeafen' : 'Deafen'} off={deafened} onClick={() => call.toggleDeafen()} menu={canPickOutput ? 'output' : undefined}>
         {deafened ? <DeafIcon size={22} /> : <Headphones size={22} weight="fill" />}
       </CtrlButton>
       <Tooltip label="Disconnect">
@@ -205,13 +207,54 @@ function Controls({ channelId }: { channelId: string }) {
   );
 }
 
-function CtrlButton({ label, on, off, onClick, children }: { label: string; on?: boolean; off?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
+function CtrlButton({
+  label,
+  on,
+  off,
+  onClick,
+  menu,
+  children,
+}: {
+  label: string;
+  on?: boolean;
+  off?: boolean;
+  onClick: () => void;
+  /** Adds a small arrow (and right-click) to pick which mic, camera or speakers to use. */
+  menu?: DeviceKind;
+  children: React.ReactNode;
+}) {
+  const button = (
     <Tooltip label={label}>
-      <button className={`call-ctrl${on ? ' is-on' : ''}${off ? ' is-off' : ''}`} onClick={onClick} aria-label={label} aria-pressed={on || off}>
+      <button
+        className={`call-ctrl${on ? ' is-on' : ''}${off ? ' is-off' : ''}`}
+        onClick={onClick}
+        onContextMenu={
+          menu
+            ? (e) => {
+                e.preventDefault();
+                void openDeviceMenu(menu, e);
+              }
+            : undefined
+        }
+        aria-label={label}
+        aria-pressed={on || off}
+      >
         {children}
       </button>
     </Tooltip>
+  );
+  if (!menu) return button;
+  return (
+    <span className="call-ctrl-wrap">
+      {button}
+      <button
+        className="call-ctrl-more"
+        onClick={(e) => void openDeviceMenu(menu, e.currentTarget.getBoundingClientRect())}
+        aria-label={menu === 'camera' ? 'Choose camera' : menu === 'input' ? 'Choose microphone' : 'Choose speakers or headphones'}
+      >
+        <CaretUp size={10} weight="bold" />
+      </button>
+    </span>
   );
 }
 
