@@ -1,4 +1,16 @@
 fn main() {
+    // The Windows app connects to the same default server as the phone apps (client/.env.production).
+    let env_file = std::path::Path::new("../../client/.env.production");
+    println!("cargo:rerun-if-changed={}", env_file.display());
+    let default_server = std::fs::read_to_string(env_file)
+        .ok()
+        .and_then(|text| {
+            text.lines()
+                .find_map(|line| line.trim().strip_prefix("VITE_DEFAULT_SERVER=").map(|v| v.trim().to_string()))
+        })
+        .unwrap_or_default();
+    println!("cargo:rustc-env=RANCHCORD_DEFAULT_SERVER={default_server}");
+
     // Every app command gets an allow-<name> permission so remote pages only reach what we list.
     let commands = &[
         "get_server",

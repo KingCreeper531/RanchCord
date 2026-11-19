@@ -136,6 +136,23 @@
         }
       }
 
+      async function connectDefault() {
+        clearTimeout(retryTimer);
+        form.hidden = true;
+        connecting.hidden = false;
+        $('connecting-title').textContent = 'Connecting…';
+        $('connecting-server').textContent = desktop.defaultServer.replace(/^https?:\/\//, '');
+        try {
+          const res = await desktop.connect(desktop.defaultServer);
+          if (res.restarting) $('connecting-title').textContent = 'Restarting RanchCord…';
+          else location.replace(res.url);
+        } catch (err) {
+          input.value = desktop.defaultServer;
+          showForm(`${err} Trying again in a few seconds…`);
+          retryTimer = setTimeout(connectDefault, 8000);
+        }
+      }
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         clearTimeout(retryTimer);
@@ -162,8 +179,12 @@
 
       (async () => {
         saved = await desktop.getServerUrl().catch(() => null);
-        if (saved && !params.has('change')) return openSaved();
-        input.value = saved || '';
+        if (!params.has('change')) {
+          if (saved) return openSaved();
+          // First run: go straight to the server this app was built for.
+          if (desktop.defaultServer) return connectDefault();
+        }
+        input.value = saved || desktop.defaultServer || '';
         showForm();
       })();
     </script>

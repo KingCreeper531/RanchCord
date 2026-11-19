@@ -397,7 +397,9 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     if let Some(origin) = &state.insecure_origin {
         args.push_str(&format!(" --unsafely-treat-insecure-origin-as-secure={origin}"));
     }
-    let bridge = BRIDGE.replace("__VERSION__", &app.package_info().version.to_string());
+    let bridge = BRIDGE
+        .replace("__VERSION__", &app.package_info().version.to_string())
+        .replace("__DEFAULT_SERVER__", env!("RANCHCORD_DEFAULT_SERVER"));
     let nav_app = app.clone();
     let popup_app = app.clone();
     let load_app = app.clone();

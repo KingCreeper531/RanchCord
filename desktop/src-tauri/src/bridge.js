@@ -9,6 +9,8 @@
     platform: 'windows',
     shell: 'tauri',
     version: '__VERSION__',
+    /** The server this build connects to when none has been picked yet. */
+    defaultServer: '__DEFAULT_SERVER__' || null,
     // Windows draws the title bar and WebView2 shows its own "choose what to share" picker.
     customTitleBar: false,
     nativeScreenPicker: false,
