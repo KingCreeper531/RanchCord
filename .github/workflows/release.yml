@@ -24,8 +24,19 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       id: ${{ steps.create.outputs.id }}
+      windows: ${{ steps.keys.outputs.windows }}
+      android: ${{ steps.keys.outputs.android }}
     steps:
       - uses: actions/checkout@v4
+      # The Windows and Android apps need your signing keys as Actions secrets (see README);
+      # without them those builds are skipped and you can upload installers built on your PC instead.
+      - id: keys
+        env:
+          TAURI_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          ANDROID_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$TAURI_KEY" ]; then echo "windows=true" >> "$GITHUB_OUTPUT"; else echo "::notice::No TAURI_SIGNING_PRIVATE_KEY secret, so the Windows app isn't built here."; fi
+          if [ -n "$ANDROID_KEY" ]; then echo "android=true" >> "$GITHUB_OUTPUT"; else echo "::notice::No ANDROID_KEYSTORE_BASE64 secret, so the Android app isn't built here."; fi
       - id: create
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
@@ -36,6 +47,7 @@ jobs:
 
   windows:
     needs: release
+    if: needs.release.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +81,7 @@ jobs:
 
   android:
     needs: release
+    if: needs.release.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

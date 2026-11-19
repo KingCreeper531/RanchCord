@@ -1,7 +1,8 @@
 // Fills a TEST server with demo people, a group and some chat so the UI can be checked.
 // Never run this against your real server. Usage: node scripts/seed-demo.mjs http://localhost:6499
 const BASE = process.argv[2] ?? 'http://localhost:6499';
-const PASSWORD = 'demo-ranch-pass';
+// Demo accounts get a fresh random password each run unless you pick one with DEMO_PASSWORD.
+const PASSWORD = process.env.DEMO_PASSWORD || `demo-${Math.random().toString(36).slice(2, 12)}`;
 
 // The demo accounts share a known password, so only ever make them on a server running on this PC.
 if (!['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostname)) {
@@ -72,4 +73,4 @@ await api('POST', `/api/channels/${dm.id}/messages`, tokens.carrotstick, { conte
 await api('POST', `/api/channels/${dm.id}/messages`, tokens.ranchlover, { content: 'YES. uploading the airhorn rn' });
 await api('POST', `/api/channels/${dm.id}/messages`, tokens.carrotstick, { content: '💀💀💀' });
 
-console.log(`Seeded ${BASE}: log in as one of ${people.map((p) => p[0]).join(', ')} (password is in this script).`);
+console.log(`Seeded ${BASE}: log in as one of ${people.map((p) => p[0]).join(', ')} with the password ${PASSWORD}`);
