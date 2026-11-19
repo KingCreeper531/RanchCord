@@ -1,0 +1,24 @@
+# Makes sure every change still builds and passes the end-to-end checks.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --prefix server && npm ci --prefix client
+      - run: npm run typecheck --prefix server && npm run typecheck --prefix client
+      - run: npm run build --prefix client
+      - name: End-to-end checks
+        run: |
+          (cd server && PORT=6499 DATA_DIR=./data-ci node --disable-warning=ExperimentalWarning src/index.ts > ../server.log 2>&1 &)
+          for i in $(seq 1 30); do curl -fs http://localhost:6499/api/instance >/dev/null && break; sleep 1; done
+          node scripts/smoke-test.mjs http://localhost:6499 || (cat server.log; exit 1)

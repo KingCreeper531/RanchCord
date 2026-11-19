@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RanchCord</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f110f;
+        --card: #1d211d;
+        --input: #121512;
+        --line: rgba(220, 235, 210, 0.08);
+        --text: #ecefe7;
+        --muted: #8a9183;
+        --brand: #5cc443;
+        --brand-hover: #6bd152;
+        --danger: #f17a73;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.4 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+        user-select: none;
+      }
+      .glow { position: fixed; border-radius: 50%; filter: blur(90px); opacity: .32; pointer-events: none; }
+      .g1 { width: 480px; height: 480px; left: -120px; top: -160px; background: #5cc443; }
+      .g2 { width: 420px; height: 420px; right: -120px; bottom: -140px; background: #39b5e0; }
+      .card {
+        position: relative;
+        width: min(420px, calc(100vw - 32px));
+        padding: 28px 30px 26px;
+        border-radius: 20px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, .5);
+        animation: pop .35s cubic-bezier(.22, .8, .24, 1);
+      }
+      @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+      .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; }
+      .brand img { width: 52px; height: 52px; object-fit: contain; }
+      .brand span { font-size: 28px; font-weight: 700; letter-spacing: -.01em; }
+      h1 { margin: 0 0 4px; font-size: 21px; text-align: center; }
+      p { margin: 0 0 18px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+      label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #b8beb0; }
+      input {
+        width: 100%; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent;
+        background: var(--input); color: var(--text); font: inherit; outline: none; user-select: text;
+      }
+      input:focus { border-color: rgba(92, 196, 67, .5); box-shadow: 0 0 0 3px rgba(92, 196, 67, .14); }
+      button {
+        width: 100%; height: 44px; margin-top: 16px; border: 0; border-radius: 8px; background: var(--brand);
+        color: #0b1708; font-weight: 600; font-size: 15px; font-family: inherit; cursor: pointer; transition: background .12s;
+      }
+      button:hover { background: var(--brand-hover); }
+      button:disabled { opacity: .6; cursor: default; }
+      button.ghost { margin-top: 8px; background: transparent; color: var(--muted); }
+      button.ghost:hover { background: rgba(255, 255, 255, .05); color: var(--text); }
+      .error { min-height: 20px; margin-top: 10px; color: var(--danger); font-size: 13.5px; text-align: center; }
+      .hint { margin-top: 14px; font-size: 12.5px; color: var(--muted); text-align: center; }
+      .spinner {
+        width: 34px; height: 34px; margin: 6px auto 16px; border-radius: 50%;
+        border: 3px solid rgba(92, 196, 67, .2); border-top-color: var(--brand); animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
+
+    <div class="card" id="connecting" hidden>
+      <div class="brand"><img src="mascot.png" alt="" /><span>RanchCord</span></div>
+      <div class="spinner"></div>
+      <h1 id="connecting-title">Connecting…</h1>
+      <p id="connecting-server"></p>
+    </div>
+
+    <form class="card" id="form" hidden>
+      <div class="brand"><img src="mascot.png" alt="" /><span>RanchCord</span></div>
+      <h1>Connect to your server</h1>
+      <p>Enter the address your friend gave you.</p>
+      <label for="url">Server address</label>
+      <input id="url" placeholder="ranch.example.com" autocomplete="url" spellcheck="false" />
+      <button id="go" type="submit">Connect</button>
+      <button id="back" class="ghost" type="button" hidden>Back to my server</button>
+      <div class="error" id="error"></div>
+      <div class="hint">Running the server on this PC? Use <b>localhost:6420</b></div>
+    </form>
+
+    <script>
+      const desktop = window.ranchDesktop;
+      const params = new URLSearchParams(location.search);
+      const $ = (id) => document.getElementById(id);
+      const form = $('form');
+      const input = $('url');
+      const error = $('error');
+      const go = $('go');
+      const back = $('back');
+      const connecting = $('connecting');
+      let saved = null;
+      let retryTimer = null;
+
+      desktop.setTitleBarColors('#0f110f', '#ecefe7');
+
+      function showForm(message = '') {
+        connecting.hidden = true;
+        form.hidden = false;
+        error.textContent = message;
+        go.disabled = false;
+        go.textContent = 'Connect';
+        back.hidden = !saved || !params.has('change');
+        setTimeout(() => input.focus(), 30);
+      }
+
+      async function openSaved() {
+        clearTimeout(retryTimer);
+        form.hidden = true;
+        connecting.hidden = false;
+        $('connecting-title').textContent = 'Connecting…';
+        $('connecting-server').textContent = saved;
+        try {
+          await desktop.checkServer(saved);
+          location.replace(saved);
+        } catch (err) {
+          input.value = saved;
+          showForm(`${err} Trying again in a few seconds…`);
+          retryTimer = setTimeout(openSaved, 8000);
+        }
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearTimeout(retryTimer);
+        go.disabled = true;
+        go.textContent = 'Connecting…';
+        error.textContent = '';
+        try {
+          const res = await desktop.connect(input.value);
+          if (res.restarting) {
+            form.hidden = true;
+            connecting.hidden = false;
+            $('connecting-title').textContent = 'Restarting RanchCord…';
+            $('connecting-server').textContent = res.url;
+          } else {
+            location.replace(res.url);
+          }
+        } catch (err) {
+          showForm(String(err));
+        }
+      });
+
+      input.addEventListener('input', () => clearTimeout(retryTimer));
+      back.addEventListener('click', () => saved && location.replace(saved));
+
+      (async () => {
+        saved = await desktop.getServerUrl().catch(() => null);
+        if (saved && !params.has('change')) return openSaved();
+        input.value = saved || '';
+        showForm();
+      })();
+    </script>
+  </body>
+</html>

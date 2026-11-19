@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RanchCord",
+  "mainBinaryName": "RanchCord",
+  "version": "../package.json",
+  "identifier": "com.ranchcord.app",
+  "build": {
+    "frontendDist": "../launcher"
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": false,
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "RanchCord",
+    "copyright": "RanchCord",
+    "category": "SocialNetworking",
+    "shortDescription": "RanchCord",
+    "longDescription": "Chat, call and share your screen with your friends on your own RanchCord server.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "displayLanguageSelector": false,
+        "startMenuFolder": "RanchCord"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM1RjUwMzk2QTZFRDIyNzYKUldSMkl1Mm1sZ1AxTlcrYjVLNWVvWEp0N1JsUWpDOUx1NU9VTk5SS21GajZ4eDczTFg0RGlyK1UK",
+      "endpoints": ["https://github.com/KingCreeper531/RanchCord/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

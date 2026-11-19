@@ -1,0 +1,44 @@
+{
+  "name": "ranchcord-client",
+  "private": true,
+  "version": "1.1.0",
+  "description": "RanchCord app: the web, Windows (Electron), Android and iOS (Capacitor) client",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../scripts/copy-twemoji.mjs && vite",
+    "build": "node ../scripts/copy-twemoji.mjs && vite build",
+    "typecheck": "tsc --noEmit -p .",
+    "preview": "vite preview",
+    "cap:sync": "npm run build && cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
+    "@capacitor/keyboard": "^8.0.6",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
+    "@discordapp/twemoji": "^17.0.3",
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource/fredoka": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "emojibase-data": "^18.0.0",
+    "livekit-client": "^2.24.1",
+    "motion": "^14.14.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "socket.io-client": "^4.8.4",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

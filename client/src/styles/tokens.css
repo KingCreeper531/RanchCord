@@ -1,0 +1,243 @@
+/*
+ * RanchCord design tokens.
+ * Palette pulled from the logo: herb green cap, ranch cream bottle, sky + deep blue label, tomato red, mustard.
+ */
+
+:root {
+  --font-ui: 'Figtree Variable', 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-brand: 'Fredoka', 'Figtree Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-emoji: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 20px;
+  --r-full: 999px;
+
+  --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --dur-1: 110ms;
+  --dur-2: 170ms;
+  --dur-3: 260ms;
+
+  --rail-w: 72px;
+  --sidebar-w: 248px;
+  --members-w: 248px;
+  --header-h: 48px;
+  --titlebar-h: 0px;
+
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+
+  --cream: #f4edc9;
+  --herb: #5cc443;
+  --sky: #39b5e0;
+  --deep: #2c6fcb;
+  --tomato: #e5534b;
+  --mustard: #f2b84b;
+}
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-0: #0f110f;
+  --bg-1: #151815;
+  --bg-2: #1b1e1b;
+  --bg-3: #232723;
+  --bg-4: #2b302b;
+  --bg-5: #343a34;
+  --bg-float: #1d211d;
+  --bg-input: #121512;
+  --bg-hover: rgba(214, 232, 200, 0.05);
+  --bg-active: rgba(214, 232, 200, 0.085);
+  --bg-selected: rgba(214, 232, 200, 0.11);
+  --bg-message-hover: rgba(0, 0, 0, 0.14);
+
+  --line: rgba(220, 235, 210, 0.07);
+  --line-strong: rgba(220, 235, 210, 0.12);
+
+  --text-1: #ecefe7;
+  --text-2: #b8beb0;
+  --text-3: #8a9183;
+  --text-4: #626a5e;
+
+  --brand: #5cc443;
+  --brand-hover: #6bd152;
+  --brand-press: #4eb037;
+  --on-brand: #0b1708;
+  --brand-soft: rgba(92, 196, 67, 0.14);
+  --brand-line: rgba(92, 196, 67, 0.45);
+  --brand-text: #82dc6c;
+
+  --link: #62c4ef;
+  --danger: #e5534b;
+  --danger-hover: #ee625a;
+  --danger-soft: rgba(229, 83, 75, 0.14);
+  --danger-text: #f17a73;
+  --warn: #f2b84b;
+
+  --mention-bg: rgba(242, 184, 75, 0.075);
+  --mention-bar: #f2b84b;
+  --chip-bg: rgba(98, 196, 239, 0.15);
+  --chip-text: #9fd8f3;
+  --chip-hover: rgba(98, 196, 239, 0.32);
+
+  --online: #5cc443;
+  --idle: #f2b84b;
+  --dnd: #e5534b;
+  --offline: #767e72;
+
+  --code-bg: #111311;
+  --code-line: rgba(220, 235, 210, 0.08);
+  --spoiler: #2e332e;
+
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-raise: 0 1px 0 rgba(0, 0, 0, 0.25);
+  --scrim: rgba(4, 6, 4, 0.7);
+  --tooltip-bg: #0a0c0a;
+  --tooltip-text: #ecefe7;
+  --stage-bg: #090a09;
+  --tile-bg: #191c19;
+  --wallpaper-dim: #0f110f;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-0: #e5e2cf;
+  --bg-1: #efede0;
+  --bg-2: #fbfaf4;
+  --bg-3: #f0eee2;
+  --bg-4: #e6e3d4;
+  --bg-5: #dad6c4;
+  --bg-float: #ffffff;
+  --bg-input: #ebe8da;
+  --bg-hover: rgba(70, 80, 40, 0.055);
+  --bg-active: rgba(70, 80, 40, 0.09);
+  --bg-selected: rgba(70, 80, 40, 0.12);
+  --bg-message-hover: rgba(70, 80, 40, 0.035);
+
+  --line: rgba(60, 66, 34, 0.1);
+  --line-strong: rgba(60, 66, 34, 0.17);
+
+  --text-1: #1f231b;
+  --text-2: #4a5043;
+  --text-3: #6f7667;
+  --text-4: #9aa092;
+
+  --brand: #4cb637;
+  --brand-hover: #44a830;
+  --brand-press: #3a962a;
+  --on-brand: #0b1708;
+  --brand-soft: rgba(76, 182, 55, 0.14);
+  --brand-line: rgba(76, 182, 55, 0.5);
+  --brand-text: #2b8a1d;
+
+  --link: #1877ad;
+  --danger: #d8433b;
+  --danger-hover: #c63a32;
+  --danger-soft: rgba(216, 67, 59, 0.1);
+  --danger-text: #c23a32;
+  --warn: #d99a22;
+
+  --mention-bg: rgba(242, 184, 75, 0.14);
+  --mention-bar: #e0a22b;
+  --chip-bg: rgba(44, 111, 203, 0.12);
+  --chip-text: #2459a8;
+  --chip-hover: rgba(44, 111, 203, 0.24);
+
+  --online: #3fae2a;
+  --idle: #e0a22b;
+  --dnd: #d8433b;
+  --offline: #8e9488;
+
+  --code-bg: #f1efe4;
+  --code-line: rgba(60, 66, 34, 0.12);
+  --spoiler: #cfcbb8;
+
+  --shadow-float: 0 16px 40px rgba(40, 44, 20, 0.18), 0 2px 8px rgba(40, 44, 20, 0.1);
+  --shadow-raise: 0 1px 0 rgba(40, 44, 20, 0.06);
+  --scrim: rgba(28, 30, 20, 0.45);
+  --tooltip-bg: #1f231b;
+  --tooltip-text: #f4f2e8;
+  --stage-bg: #11130f;
+  --tile-bg: #1c1f1b;
+  --wallpaper-dim: #f4f2e8;
+}
+
+/* Liquid Glass: frosted, see-through panels floating over a colourful background */
+[data-theme='glass'] {
+  color-scheme: dark;
+
+  --bg-0: rgba(8, 12, 20, 0.34);
+  --bg-1: rgba(14, 18, 28, 0.4);
+  --bg-2: rgba(16, 20, 30, 0.34);
+  --bg-3: rgba(255, 255, 255, 0.075);
+  --bg-4: rgba(255, 255, 255, 0.11);
+  --bg-5: rgba(255, 255, 255, 0.16);
+  --bg-float: rgba(24, 28, 40, 0.6);
+  --bg-input: rgba(0, 0, 0, 0.22);
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-active: rgba(255, 255, 255, 0.11);
+  --bg-selected: rgba(255, 255, 255, 0.15);
+  --bg-message-hover: rgba(255, 255, 255, 0.045);
+
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+
+  --text-1: #f7f9fc;
+  --text-2: #d6dce5;
+  --text-3: #a9b2bf;
+  --text-4: #808a98;
+
+  --brand: #5cc443;
+  --brand-hover: #6bd152;
+  --brand-press: #4eb037;
+  --on-brand: #0b1708;
+  --brand-soft: rgba(92, 196, 67, 0.18);
+  --brand-line: rgba(92, 196, 67, 0.5);
+  --brand-text: #8fe57a;
+
+  --link: #7cd0f5;
+  --danger: #ef5b52;
+  --danger-hover: #f66d64;
+  --danger-soft: rgba(239, 91, 82, 0.18);
+  --danger-text: #ff8f88;
+  --warn: #f6c35f;
+
+  --mention-bg: rgba(246, 195, 95, 0.12);
+  --mention-bar: #f6c35f;
+  --chip-bg: rgba(124, 208, 245, 0.2);
+  --chip-text: #bfe8fb;
+  --chip-hover: rgba(124, 208, 245, 0.36);
+
+  --online: #5cc443;
+  --idle: #f2b84b;
+  --dnd: #e5534b;
+  --offline: #8b94a1;
+
+  --code-bg: rgba(0, 0, 0, 0.3);
+  --code-line: rgba(255, 255, 255, 0.1);
+  --spoiler: rgba(255, 255, 255, 0.2);
+
+  --shadow-float: 0 18px 50px rgba(0, 0, 0, 0.38), 0 2px 10px rgba(0, 0, 0, 0.22);
+  --shadow-raise: none;
+  --scrim: rgba(4, 8, 16, 0.38);
+  --tooltip-bg: rgba(18, 22, 32, 0.86);
+  --tooltip-text: #f7f9fc;
+  --stage-bg: rgba(4, 6, 10, 0.72);
+  --tile-bg: rgba(20, 24, 34, 0.7);
+  --wallpaper-dim: #05080e;
+
+  --glass-fill: rgba(16, 20, 30, 0.36);
+  --glass-blur: blur(28px) saturate(175%);
+  --glass-sheen: linear-gradient(160deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 28%, rgba(255, 255, 255, 0) 60%);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}

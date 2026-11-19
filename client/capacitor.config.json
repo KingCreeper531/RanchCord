@@ -1,0 +1,37 @@
+{
+  "appId": "com.ranchcord.app",
+  "appName": "RanchCord",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#151815"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#151815"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "launchAutoHide": true,
+      "backgroundColor": "#151815",
+      "showSpinner": false
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_ranchcord",
+      "iconColor": "#5cc443"
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
+  }
+}

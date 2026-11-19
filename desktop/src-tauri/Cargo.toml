@@ -1,0 +1,38 @@
+[package]
+name = "ranchcord"
+version = "1.1.0"
+description = "RanchCord for Windows"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+# Same HTTP/TLS stack the updater already uses, so it isn't compiled twice.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tokio = { version = "1", features = ["time"] }
+
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.8"
+# Must match the versions wry/tauri use so the WebView2 handles are the same types.
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_Shell"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

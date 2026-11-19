@@ -1,0 +1,121 @@
+# Builds the Windows, Android and iPhone apps and publishes them as a GitHub release.
+# Start it with: npm run release 1.2.0   (or push a tag like v1.2.0)
+# The Windows app checks this release for updates and installs them by itself.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build, like v1.2.0'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: create
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "RanchCord ${TAG#v}" \
+              --notes "Windows: RanchCord-Setup.exe (installed apps update themselves). Android: RanchCord.apk. iPhone: RanchCord.ipa (install with Sideloadly or AltStore)."
+          fi
+          echo "id=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG" --jq .id)" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - run: npm ci
+        working-directory: desktop
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tauriScript: npm run tauri --
+          releaseId: ${{ needs.release.outputs.id }}
+          includeUpdaterJson: true
+      - name: Upload with a simple name for the download button
+        shell: bash
+        run: |
+          exe=$(ls desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          cp "$exe" RanchCord-Setup.exe
+          gh release upload "$TAG" RanchCord-Setup.exe --clobber
+
+  android:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm run build && npx cap sync android
+        working-directory: client
+      - name: Build the signed APK
+        working-directory: client/android
+        env:
+          RANCHCORD_KEYSTORE: ${{ runner.temp }}/ranchcord-release.jks
+          RANCHCORD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RANCHCORD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RANCHCORD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RANCHCORD_KEYSTORE"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/RanchCord.apk"
+      - run: gh release upload "$TAG" RanchCord.apk --clobber
+
+  ios:
+    needs: release
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm run build && npx cap sync ios
+        working-directory: client
+      - name: Build the app (unsigned; Sideloadly/AltStore sign it with your Apple ID)
+        working-directory: client
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/RanchCord.ipa" Payload
+      - run: gh release upload "$TAG" RanchCord.ipa --clobber
