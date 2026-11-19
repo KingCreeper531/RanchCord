@@ -823,6 +823,8 @@
 }
 
 .m-main .main {
+  /* Stay exactly screen-sized so the message list scrolls instead of growing past the screen. */
+  min-height: 0;
   padding-bottom: var(--safe-bottom);
 }
 
