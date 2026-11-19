@@ -25,10 +25,11 @@ import {
   MusicNotes,
   Check,
   CopySimple,
+  Bomb,
 } from '@phosphor-icons/react';
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../calls/manager';
-import { ackChannel, closeDm, deleteChannel, leaveGroup, updateProfile } from '../lib/actions';
+import { ackChannel, askToNukeDm, closeDm, deleteChannel, leaveGroup, updateProfile } from '../lib/actions';
 import { formatFriendCode } from '../lib/format';
 import { canShareScreen } from '../lib/platform';
 import { EmojiText } from '../lib/twemoji';
@@ -66,6 +67,7 @@ const DmRow = memo(function DmRow({ channelId }: { channelId: string }) {
           { label: 'Mark as read', disabled: !unread && !mentions, onSelect: () => ackChannel(channelId) },
           { label: 'Profile', onSelect: () => user && ui.showProfile(user.id, e.target as Element) },
           { separator: true },
+          { label: 'Nuke chat', danger: true, icon: <Bomb size={16} weight="fill" />, onSelect: () => askToNukeDm(channelId) },
           { label: 'Close DM', onSelect: () => void closeDm(channelId) },
         ]);
       }}

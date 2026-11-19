@@ -14,6 +14,7 @@ import {
   Trash,
   ArrowClockwise,
   At,
+  Bomb,
   Star,
 } from '@phosphor-icons/react';
 import { deleteMessage, discardMessage, editMessage, retryMessage, toggleReaction, previewInvite, joinInvite, isFavorite, toggleFavorite, type InvitePreview } from '../../lib/actions';
@@ -424,6 +425,25 @@ export const MessageItem = memo(function MessageItem({ message, continued, group
       Boolean(myRoles?.some((r) => message.content.includes(`<@&${r}>`))));
   const canEdit = mine && !message.pending && !message.failed && Boolean(message.content || message.attachments.length);
   const canDelete = !message.pending && (mine || canManage);
+
+  if (message.type === 'nuke') {
+    return (
+      <div className="msg msg-system msg-nuke" data-mid={message.id}>
+        <span className="msg-gutter">
+          <Bomb size={18} weight="fill" className="msg-system-icon" />
+        </span>
+        <div className="msg-system-text">
+          <button className="msg-author-name" onClick={(e) => ui.showProfile(author.id, e.currentTarget, groupId)}>
+            {authorName}
+          </button>{' '}
+          nuked this chat. Everything sent before is gone.
+          <Tooltip label={formatFull(message.createdAt)}>
+            <time className="msg-time">{formatTimestamp(message.createdAt)}</time>
+          </Tooltip>
+        </div>
+      </div>
+    );
+  }
 
   if (message.type === 'join') {
     const line = JOIN_LINES[hash(message.id) % JOIN_LINES.length];

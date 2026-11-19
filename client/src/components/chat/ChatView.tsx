@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CloudArrowUp, Hash, List, Phone, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
+import { Bomb, CloudArrowUp, Hash, List, Phone, UserPlus, Users, VideoCamera, UserCircle } from '@phosphor-icons/react';
 import { useShallow } from 'zustand/react/shallow';
 import { call } from '../../calls/manager';
-import { sendMessage } from '../../lib/actions';
+import { askToNukeDm, sendMessage } from '../../lib/actions';
 import { isMobileDevice } from '../../lib/platform';
 import { EmojiText } from '../../lib/twemoji';
 import { useCall } from '../../store/call';
@@ -102,6 +102,11 @@ function ChatHeader({ channelId }: { channelId: string }) {
         {isDm && recipient && (
           <IconButton label="Profile" onClick={(e) => ui.showProfile(recipient.id, e.currentTarget)}>
             <UserCircle size={22} />
+          </IconButton>
+        )}
+        {isDm && (
+          <IconButton label="Nuke chat" danger onClick={() => askToNukeDm(channelId)}>
+            <Bomb size={21} weight="fill" />
           </IconButton>
         )}
         {!isDm && (

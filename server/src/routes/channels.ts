@@ -111,6 +111,8 @@ export function createMessage(opts: {
   nonce?: string;
   mentions?: string[];
   everyone?: boolean;
+  /** System notices: no unread mention badge for the other person. */
+  silent?: boolean;
 }) {
   const { channel, author } = opts;
   const id = newId();
@@ -119,7 +121,7 @@ export function createMessage(opts: {
   const memberSet = new Set(members);
   const mentioned = new Set((opts.mentions ?? []).filter((uid) => uid !== author.id && memberSet.has(uid)));
   if (opts.everyone) for (const uid of members) if (uid !== author.id) mentioned.add(uid);
-  if (channel.type === 'dm') for (const uid of members) if (uid !== author.id) mentioned.add(uid);
+  if (channel.type === 'dm' && !opts.silent) for (const uid of members) if (uid !== author.id) mentioned.add(uid);
 
   const reopened: string[] = [];
   tx(() => {
@@ -386,6 +388,25 @@ export default async function channelRoutes(app: FastifyInstance) {
     });
     emitTo(channelMembers(channel), 'message:delete', { id: msg.id, channelId: id });
     return { ok: true };
+  });
+
+  // Wipes a whole DM, for both people: every message, reaction and file (from their own storage too).
+  app.post('/api/channels/:id/nuke', async (req) => {
+    const me = auth(req);
+    const { id } = req.params as { id: string };
+    const { channel } = requireChannel(me.id, id);
+    if (channel.type !== 'dm') throw badRequest('Only DMs can be nuked');
+    const count = get<{ n: number }>('SELECT COUNT(*) AS n FROM messages WHERE channel_id = ?', id)!.n;
+    deleteChannelFiles([id]);
+    tx(() => {
+      run('DELETE FROM messages WHERE channel_id = ?', id);
+      run('UPDATE channels SET last_message_id = NULL WHERE id = ?', id);
+      run('UPDATE read_states SET last_read_id = NULL, mention_count = 0 WHERE channel_id = ?', id);
+    });
+    emitTo(channelMembers(channel), 'channel:nuked', { channelId: id, by: me.id });
+    // A small notice so the other person knows what happened to the chat.
+    createMessage({ channel: getChannel(id)!, author: getUser(me.id)!, type: 'nuke', silent: true });
+    return { ok: true, deleted: count };
   });
 
   /* ---------- reactions ---------- */

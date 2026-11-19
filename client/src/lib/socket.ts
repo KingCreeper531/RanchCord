@@ -128,6 +128,7 @@ export function connectSocket() {
   s.on('message:create', onMessage);
   s.on('message:update', (u: { id: string; channelId: string; content: string; editedAt: number }) => data.updateMessage(u));
   s.on('message:delete', (e: { id: string; channelId: string }) => data.deleteMessage(e.channelId, e.id));
+  s.on('channel:nuked', (e: { channelId: string; by: string }) => data.nukeChannel(e.channelId));
   s.on('reaction:add', (e: { channelId: string; messageId: string; userId: string; emoji: string }) => data.reaction(e, true));
   s.on('reaction:remove', (e: { channelId: string; messageId: string; userId: string; emoji: string }) => data.reaction(e, false));
   s.on('typing:start', (e: { channelId: string; userId: string }) => data.typing(e.channelId, e.userId));

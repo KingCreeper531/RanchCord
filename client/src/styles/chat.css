@@ -1714,3 +1714,8 @@ img.emoji-tw {
     height: 28px;
   }
 }
+
+/* "X nuked this chat" notice */
+.msg-nuke .msg-system-icon {
+  color: var(--danger);
+}

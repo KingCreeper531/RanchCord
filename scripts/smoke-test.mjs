@@ -231,6 +231,20 @@ ok(await waitFor(A.events, 'voice:state', (p) => p.channelId === voice.id && p.u
 A.s.emit('call:leave');
 B.s.emit('call:leave');
 
+// nuking a DM wipes it for both people
+await api('POST', `/api/channels/${dm.id}/messages`, a.token, { content: 'this is about to get nuked' });
+const nuked = await api('POST', `/api/channels/${dm.id}/nuke`, b.token);
+ok(nuked.deleted >= 1, 'either person can nuke a DM');
+ok(await waitFor(A.events, 'channel:nuked', (p) => p.channelId === dm.id && p.by === b.user.id), 'the other person sees the chat get nuked');
+const afterNuke = await api('GET', `/api/channels/${dm.id}/messages?limit=50`, a.token);
+ok(afterNuke.length === 1 && afterNuke[0].type === 'nuke' && afterNuke[0].author.id === b.user.id, 'only the "nuked this chat" notice is left');
+try {
+  await api('POST', `/api/channels/${text.id}/nuke`, a.token);
+  ok(false, "group channels can't be nuked");
+} catch (e) {
+  ok(e.status === 400, "group channels can't be nuked");
+}
+
 // favourite GIFs + personal background
 const favGif = { kind: 'klipy', type: 'gif', slug: 'ranch-dance-1', title: 'Ranch dance', url: 'https://static.klipy.com/ii/test/ranch.gif', mp4: null, webp: null, preview: null, width: 220, height: 160 };
 const favs = await api('PUT', '/api/favorites', a.token, favGif);

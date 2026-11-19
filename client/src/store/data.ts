@@ -464,6 +464,21 @@ export const data = {
     set((s) => ({ messages: patchMessage(s, u.channelId, u.id, (m) => ({ ...m, content: u.content, editedAt: u.editedAt })) }));
   },
 
+  /** Someone nuked this DM: drop every message we had for it (the server already deleted them). */
+  nukeChannel(channelId: string) {
+    set((s) => {
+      const channel = s.channels[channelId];
+      const read = s.readStates[channelId];
+      return {
+        messages: s.messages[channelId]
+          ? { ...s.messages, [channelId]: { list: [], hasMore: false, loading: false, loaded: true, stale: false } }
+          : s.messages,
+        channels: channel ? { ...s.channels, [channelId]: { ...channel, lastMessageId: null } } : s.channels,
+        readStates: read ? { ...s.readStates, [channelId]: { ...read, lastReadId: null, mentionCount: 0 } } : s.readStates,
+      };
+    });
+  },
+
   deleteMessage(channelId: string, id: string) {
     set((s) => {
       const messages = mapMessages(s, channelId, (list) => list.filter((m) => m.id !== id).map((m) =>

@@ -1,7 +1,7 @@
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
 import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, ServerSettings, Sound, StorageInfo, UploadTicket, User } from '../types';
-import { ApiError, api, putToUrl, setToken, upload } from './api';
+import { ApiError, api, errorMessage, putToUrl, setToken, upload } from './api';
 import { expandEmojiShortcodes } from './emoji';
 import { imageSize, videoSize } from './image';
 import { nonce } from './format';
@@ -647,4 +647,24 @@ export async function toggleFavorite(embed: KlipyEmbed): Promise<boolean> {
     throw err;
   }
   return on;
+}
+
+/* ---------- nuking a DM ---------- */
+
+/** Deletes every message, reaction and file in a DM, for both people. */
+export async function nukeDm(channelId: string) {
+  await api.post(`/api/channels/${channelId}/nuke`);
+}
+
+export function askToNukeDm(channelId: string) {
+  ui.openModal('confirm', {
+    title: 'Nuke this chat?',
+    body: "Every message, picture and file in this DM gets deleted for both of you. This can't be undone.",
+    confirmLabel: 'Nuke it',
+    danger: true,
+    onConfirm: () =>
+      nukeDm(channelId)
+        .then(() => ui.toast('Chat nuked', 'success'))
+        .catch((err) => ui.toast(errorMessage(err), 'error')),
+  });
 }

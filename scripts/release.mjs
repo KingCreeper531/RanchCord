@@ -34,7 +34,7 @@ const cargoToml = path.join(root, 'desktop/src-tauri/Cargo.toml');
 fs.writeFileSync(cargoToml, fs.readFileSync(cargoToml, 'utf8').replace(/^version = ".*"$/m, `version = "${version}"`));
 const cargoLock = path.join(root, 'desktop/src-tauri/Cargo.lock');
 if (fs.existsSync(cargoLock)) {
-  fs.writeFileSync(cargoLock, fs.readFileSync(cargoLock, 'utf8').replace(/(name = "ranchcord"\nversion = )".*"/, `$1"${version}"`));
+  fs.writeFileSync(cargoLock, fs.readFileSync(cargoLock, 'utf8').replace(/(name = "ranchcord"\r?\nversion = )".*"/, `$1"${version}"`));
 }
 
 git('add', '-A');
