@@ -1,7 +1,7 @@
 {
   "name": "ranchcord-client",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "RanchCord app: the web, Windows (Electron), Android and iOS (Capacitor) client",
   "type": "module",
   "scripts": {
