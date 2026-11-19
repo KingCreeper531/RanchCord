@@ -1,6 +1,6 @@
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, UploadTicket, User } from '../types';
+import type { ApiGroup, Attachment, Bootstrap, Channel, CustomEmoji, GroupRole, KlipyEmbed, Member, Message, MyStorage, Relationship, SelfUser, Sound, Sticker, UploadTicket, User } from '../types';
 import { ApiError, api, errorMessage, putToUrl, setToken, upload } from './api';
 import { expandEmojiShortcodes } from './emoji';
 import { imageSize, videoSize } from './image';
@@ -536,6 +536,31 @@ export async function uploadEmoji(name: string, blob: Blob, filename = 'emoji.we
   const e = await upload<CustomEmoji>('/api/emojis', form);
   data.upsertEmoji(e);
   return e;
+}
+
+/* ---------- stickers people upload ---------- */
+
+export async function uploadSticker(name: string, blob: Blob, filename = 'sticker.webp') {
+  const form = new FormData();
+  form.append('name', name);
+  form.append('file', blob, filename);
+  const x = await upload<Sticker>('/api/stickers', form);
+  data.upsertSticker(x);
+  return x;
+}
+
+export async function renameSticker(id: string, name: string) {
+  data.upsertSticker(await api.patch<Sticker>(`/api/stickers/${id}`, { name }));
+}
+
+export async function deleteSticker(id: string) {
+  await api.del(`/api/stickers/${id}`);
+  data.removeSticker(id);
+}
+
+/** What sending an uploaded sticker puts in the message. */
+export function stickerEmbed(x: Sticker): KlipyEmbed {
+  return { kind: 'media', type: 'sticker', slug: `stk:${x.id}`, title: x.name, url: x.url, mp4: null, webp: null, preview: null, width: x.width, height: x.height };
 }
 
 export async function renameEmoji(id: string, name: string) {

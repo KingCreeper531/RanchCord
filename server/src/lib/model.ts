@@ -174,6 +174,20 @@ export function attachmentOut(a: AttachmentRow) {
   };
 }
 
+export interface StickerRow {
+  id: string;
+  name: string;
+  path: string;
+  width: number;
+  height: number;
+  creator_id: string | null;
+  created_at: number;
+}
+
+export function stickerOut(s: StickerRow) {
+  return { id: s.id, name: s.name, url: `/files/${s.path}`, width: s.width, height: s.height, creatorId: s.creator_id, createdAt: s.created_at };
+}
+
 export function emojiOut(e: EmojiRow) {
   return { id: e.id, name: e.name, url: `/files/${e.path}`, animated: Boolean(e.animated), creatorId: e.creator_id };
 }

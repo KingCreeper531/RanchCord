@@ -75,6 +75,6 @@ export const config = {
 export const livekitEnabled = Boolean(config.livekit.url && config.livekit.apiKey && config.livekit.apiSecret);
 
 export const filesDir = path.join(config.dataDir, 'files');
-for (const sub of ['attachments', 'avatars', 'emojis', 'icons', 'sounds']) {
+for (const sub of ['attachments', 'avatars', 'emojis', 'icons', 'sounds', 'stickers']) {
   fs.mkdirSync(path.join(filesDir, sub), { recursive: true });
 }

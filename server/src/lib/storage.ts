@@ -26,7 +26,7 @@ import { getSetting } from './settings.ts';
 import { HttpError, badRequest, notFound, now, randomCode } from './util.ts';
 
 const env = process.env;
-const TOP_DIRS = new Set(['attachments', 'avatars', 'emojis', 'icons', 'sounds']);
+const TOP_DIRS = new Set(['attachments', 'avatars', 'emojis', 'icons', 'sounds', 'stickers']);
 
 /* ---------------- settings ---------------- */
 

@@ -11,6 +11,8 @@ import {
   type UserRow,
   dmOut,
   emojiOut,
+  type StickerRow,
+  stickerOut,
   getUser,
   groupOut,
   publicUser,
@@ -85,6 +87,7 @@ export default async function userRoutes(app: FastifyInstance) {
       me.id,
     );
     const emojis = all<EmojiRow>('SELECT * FROM emojis ORDER BY name COLLATE NOCASE').map(emojiOut);
+    const stickers = all<StickerRow>('SELECT * FROM stickers ORDER BY created_at DESC').map(stickerOut);
 
     return {
       user: selfUser(me),
@@ -98,6 +101,7 @@ export default async function userRoutes(app: FastifyInstance) {
         mentionCount: r.mention_count,
       })),
       emojis,
+      stickers,
       sounds: allSounds(),
       myStorage: myStorageStatus(me.id),
       favorites: all<{ embed: string }>('SELECT embed FROM gif_favorites WHERE user_id = ? ORDER BY created_at DESC', me.id).map((r) =>

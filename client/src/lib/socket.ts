@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import { data, useData } from '../store/data';
 import { ui, useUi } from '../store/ui';
-import type { ApiGroup, Channel, CustomEmoji, GroupLayout, GroupMeta, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Presence, ReadState, SelfUser, Sound, User, VoiceState } from '../types';
+import type { ApiGroup, Channel, CustomEmoji, GroupLayout, GroupMeta, GroupRole, Instance, KlipyEmbed, Member, Message, MyStorage, Presence, ReadState, SelfUser, Sound, Sticker, User, VoiceState } from '../types';
 import { REL } from '../types';
 import { ackChannel, logout, refreshBootstrap } from './actions';
 import { getToken } from './api';
@@ -198,6 +198,9 @@ export function connectSocket() {
   });
 
   s.on('emoji:create', (e: CustomEmoji) => data.upsertEmoji(e));
+  s.on('sticker:create', (x: Sticker) => data.upsertSticker(x));
+  s.on('sticker:update', (x: Sticker) => data.upsertSticker(x));
+  s.on('sticker:delete', (e: { id: string }) => data.removeSticker(e.id));
   s.on('emoji:update', (e: CustomEmoji) => data.upsertEmoji(e));
   s.on('emoji:delete', (e: { id: string }) => data.removeEmoji(e.id));
   s.on('sound:create', (x: Sound) => data.upsertSound(x));

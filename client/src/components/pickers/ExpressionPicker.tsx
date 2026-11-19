@@ -3,6 +3,7 @@ import { isMobileDevice } from '../../lib/platform';
 import type { KlipyEmbed } from '../../types';
 import { EmojiPicker } from './EmojiPicker';
 import { KlipyPicker } from './KlipyPicker';
+import { StickerPicker } from './StickerPicker';
 
 type Tab = 'emoji' | 'gifs' | 'stickers';
 
@@ -60,7 +61,7 @@ export function ExpressionPicker({
             />
           )}
           {tab === 'gifs' && <KlipyPicker key="gifs" kind="gifs" onPick={onKlipy} />}
-          {tab === 'stickers' && <KlipyPicker key="stickers" kind="stickers" onPick={onKlipy} />}
+          {tab === 'stickers' && <StickerPicker onPick={onKlipy} />}
         </div>
       </div>
     </>

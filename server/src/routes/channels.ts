@@ -77,10 +77,10 @@ const KlipyEmbedSchema = z.object({
   height: z.number().int().min(1).max(20000),
 });
 
-/** A GIF someone uploaded or linked, sent again from favorites. */
+/** A GIF someone uploaded or linked (sent again from favorites), or a sticker someone uploaded. */
 const MediaEmbedSchema = z.object({
   kind: z.literal('media'),
-  type: z.literal('gif'),
+  type: z.enum(['gif', 'sticker']),
   slug: z.string().max(300),
   title: z.string().max(300).default(''),
   url: mediaUrl,

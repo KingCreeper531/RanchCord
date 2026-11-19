@@ -18,6 +18,7 @@ import type {
   Relationship,
   SelfUser,
   Sound,
+  Sticker,
   User,
   VoiceState,
 } from '../types';
@@ -45,6 +46,7 @@ export interface DataState {
   groupOrder: string[];
   readStates: Record<string, ReadState>;
   emojis: Record<string, CustomEmoji>;
+  stickers: Record<string, Sticker>;
   sounds: Record<string, Sound>;
   favorites: KlipyEmbed[];
   myStorage: MyStorage | null;
@@ -67,6 +69,7 @@ const initial: DataState = {
   groupOrder: [],
   readStates: {},
   emojis: {},
+  stickers: {},
   sounds: {},
   favorites: [],
   myStorage: null,
@@ -189,6 +192,7 @@ export const data = {
       groupOrder: savedGroupOrder(b.groups.map((g) => g.id)),
       readStates: Object.fromEntries(b.readStates.map((r) => [r.channelId, r])),
       emojis: Object.fromEntries(b.emojis.map((e) => [e.id, e])),
+      stickers: Object.fromEntries((b.stickers ?? []).map((x) => [x.id, x])),
       sounds: Object.fromEntries((b.sounds ?? []).map((x) => [x.id, x])),
       favorites: b.favorites ?? [],
       myStorage: b.myStorage ?? null,
@@ -578,6 +582,20 @@ export const data = {
       else if (Object.keys(users).length) changed = true;
     }
     if (changed) set({ typing });
+  },
+
+  /* ---------- stickers ---------- */
+
+  upsertSticker(x: Sticker) {
+    set((s) => ({ stickers: { ...s.stickers, [x.id]: x } }));
+  },
+
+  removeSticker(id: string) {
+    set((s) => {
+      const stickers = { ...s.stickers };
+      delete stickers[id];
+      return { stickers };
+    });
   },
 
   /* ---------- emojis ---------- */

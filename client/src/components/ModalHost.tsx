@@ -17,6 +17,7 @@ import {
 } from './modals/BasicModals';
 import { AddGroupModal, CreateChannelModal, EditChannelModal, GroupSettingsModal, InviteModal, TopicModal } from './modals/GroupModals';
 import { BanModal, CategoryModal } from './modals/GroupAdmin';
+import { StickerUploadModal } from './modals/StickerUpload';
 import { ImageCropModal } from './modals/ImageCrop';
 import { SettingsModal } from './settings/Settings';
 
@@ -35,6 +36,7 @@ const REGISTRY: Record<string, ComponentType<any>> = {
   groupSettings: GroupSettingsModal,
   category: CategoryModal,
   ban: BanModal,
+  stickerUpload: StickerUploadModal,
   createChannel: CreateChannelModal,
   editChannel: EditChannelModal,
   topic: TopicModal,

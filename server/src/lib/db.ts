@@ -356,6 +356,18 @@ const migrations: (string | (() => void))[] = [
       });
     }
   },
+  `
+  -- Stickers people upload, shared by everyone on the server (like photo emojis).
+  CREATE TABLE stickers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    path TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    creator_id TEXT,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;

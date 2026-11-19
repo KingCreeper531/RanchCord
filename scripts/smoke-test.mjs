@@ -188,6 +188,27 @@ ok(emoji.name === `ranch_${stamp}`, 'photo emoji upload');
 ok(await waitFor(B.events, 'emoji:create', (p) => p.id === emoji.id), 'emoji broadcast');
 await api('PUT', `/api/channels/${text.id}/messages/${everyone.id}/reactions/${encodeURIComponent('c:' + emoji.id)}`, b.token);
 ok(await waitFor(A.events, 'reaction:add', (p) => p.emoji === `c:${emoji.id}`), 'custom emoji reaction');
+
+// stickers people upload
+const stickerForm = new FormData();
+stickerForm.append('name', 'Ranch dance');
+stickerForm.append('file', new Blob([png], { type: 'image/png' }), 's.png');
+const sticker = await api('POST', '/api/stickers', a.token, stickerForm);
+ok(sticker.name === 'Ranch dance' && sticker.url.startsWith('/files/stickers/') && sticker.width === 2, 'sticker upload');
+ok((await fetch(BASE + sticker.url)).ok, 'sticker pictures load');
+ok(await waitFor(B.events, 'sticker:create', (p) => p.id === sticker.id), 'new stickers show up for everyone');
+ok((await api('GET', '/api/bootstrap', b.token)).stickers?.some((s) => s.id === sticker.id), 'stickers load on startup');
+const stickerEmbed = { kind: 'media', type: 'sticker', slug: `stk:${sticker.id}`, title: sticker.name, url: sticker.url, mp4: null, webp: null, preview: null, width: sticker.width, height: sticker.height };
+ok((await api('POST', `/api/channels/${text.id}/messages`, b.token, { content: '', embeds: [stickerEmbed] })).embeds?.[0]?.type === 'sticker', 'an uploaded sticker can be sent');
+try {
+  await api('DELETE', `/api/stickers/${sticker.id}`, b.token);
+  ok(false, "people can't delete someone else's sticker");
+} catch (e) {
+  ok(e.status === 403, "people can't delete someone else's sticker");
+}
+ok((await api('PATCH', `/api/stickers/${sticker.id}`, a.token, { name: 'Ranch dance 2' })).name === 'Ranch dance 2', 'sticker renamed');
+await api('DELETE', `/api/stickers/${sticker.id}`, a.token);
+ok(await waitFor(B.events, 'sticker:delete', (p) => p.id === sticker.id), 'deleted stickers disappear for everyone');
 const wav = Buffer.alloc(44 + 800);
 wav.write('RIFF', 0);
 wav.writeUInt32LE(36 + 800, 4);

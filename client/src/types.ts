@@ -185,6 +185,17 @@ export interface CustomEmoji {
   creatorId: string;
 }
 
+/** A sticker someone uploaded. Shared with everyone on the server, like photo emojis. */
+export interface Sticker {
+  id: string;
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+  creatorId: string | null;
+  createdAt: number;
+}
+
 export interface Sound {
   id: string;
   name: string;
@@ -241,6 +252,7 @@ export interface Bootstrap {
   groups: ApiGroup[];
   readStates: ReadState[];
   emojis: CustomEmoji[];
+  stickers?: Sticker[];
   sounds: Sound[];
   favorites?: KlipyEmbed[];
   myStorage?: MyStorage;
