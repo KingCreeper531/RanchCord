@@ -31,6 +31,7 @@ import { ui, useUi } from '../../store/ui';
 import type { Attachment, KlipyEmbed, Message, Reaction } from '../../types';
 import { Avatar, Button, Spinner, Tooltip, openMenu, type MenuItem } from '../ui';
 import { openReactionPicker } from '../pickers/ReactionPicker';
+import { LinkCard, previewableLinks } from './LinkCard';
 
 const JOIN_LINES = [
   'just showed up. Pass the ranch!',
@@ -317,19 +318,25 @@ function LinkImage({ src }: { src: string }) {
 }
 
 function LinkEmbeds({ content }: { content: string }) {
-  const { images, invites } = useMemo(() => {
-    if (!content.includes('http')) return { images: [], invites: [] };
+  const { images, invites, links } = useMemo(() => {
+    if (!content.includes('http')) return { images: [], invites: [], links: [] };
+    // Links wrapped in <...> don't get previews, like on Discord.
     const stripped = content.replace(/<https?:\/\/[^\s>]+>/g, '');
+    const images = [...new Set(stripped.match(IMAGE_URL) ?? [])].slice(0, 4);
     return {
-      images: [...new Set(stripped.match(IMAGE_URL) ?? [])].slice(0, 4),
+      images,
       invites: [...new Set([...stripped.matchAll(INVITE_URL)].map((m) => m[1]))].slice(0, 3),
+      links: previewableLinks(stripped, (url) => images.includes(url) || /\/invite\/[A-Za-z0-9]{6,16}\b/.test(url)),
     };
   }, [content]);
-  if (!images.length && !invites.length) return null;
+  if (!images.length && !invites.length && !links.length) return null;
   return (
     <div className="msg-embeds">
       {invites.map((code) => (
         <InviteCard key={code} code={code} />
+      ))}
+      {links.map((url) => (
+        <LinkCard key={url} url={url} />
       ))}
       {images.map((src) => (
         <LinkImage key={src} src={src} />

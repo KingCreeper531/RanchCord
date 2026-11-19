@@ -381,6 +381,16 @@ await api('DELETE', `/api/groups/${g.id}/bans/${b.user.id}`, a.token);
 await api('POST', `/api/invites/${inv2.code}`, b.token);
 ok((await api('GET', '/api/bootstrap', b.token)).groups.some((x) => x.id === g.id), 'unbanned people can come back');
 
+// link previews never reach this machine or the home network
+ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent(BASE + '/api/instance'), a.token)).preview === null, 'link previews refuse local addresses');
+ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent('http://192.168.1.1/'), a.token)).preview === null, 'link previews refuse the home network');
+try {
+  await api('GET', '/api/link-preview?url=not-a-link', a.token);
+  ok(false, 'link previews need a real link');
+} catch (e) {
+  ok(e.status === 400, 'link previews need a real link');
+}
+
 // cleanup
 await api('DELETE', `/api/groups/${g.id}`, a.token);
 ok(await waitFor(B.events, 'group:delete', (p) => p.id === g.id), 'group deletion broadcast');

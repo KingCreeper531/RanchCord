@@ -368,6 +368,14 @@ const migrations: (string | (() => void))[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  `
+  -- Link previews (page title, description and picture), cached so pages aren't fetched again and again.
+  CREATE TABLE link_previews (
+    url TEXT PRIMARY KEY,
+    data TEXT,
+    fetched_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
