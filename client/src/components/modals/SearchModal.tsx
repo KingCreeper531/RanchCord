@@ -14,15 +14,17 @@ type Scope = 'chat' | 'group' | 'all';
 function parseQuery(raw: string) {
   const s = useData.getState();
   let from: string | undefined;
+  let unknownFrom: string | undefined;
   const words: string[] = [];
   for (const part of raw.split(/\s+/).filter(Boolean)) {
     const m = /^from:@?(.+)$/i.exec(part);
     if (m) {
       const name = m[1].toLowerCase();
-      from = Object.values(s.users).find((u) => u.username.toLowerCase() === name || u.displayName.toLowerCase() === name)?.id ?? 'nobody';
+      from = Object.values(s.users).find((u) => u.username.toLowerCase() === name || u.displayName.toLowerCase() === name)?.id;
+      unknownFrom = from ? undefined : m[1];
     } else words.push(part);
   }
-  return { text: words.join(' '), from };
+  return { text: words.join(' '), from, unknownFrom };
 }
 
 function highlight(text: string, words: string[]): ReactNode[] {
@@ -51,11 +53,15 @@ export function SearchModal({ channelId, onClose }: { channelId?: string; onClos
   const parsed = useMemo(() => parseQuery(debounced), [debounced]);
 
   const search = async (before?: string) => {
-    if (!parsed.text && !parsed.from) {
-      setResults(null);
+    // Anything still on its way belongs to an older search now.
+    const id = ++req.current;
+    if (parsed.unknownFrom || (!parsed.text && !parsed.from)) {
+      setLoading(false);
+      setError(null);
+      setHasMore(false);
+      setResults(parsed.unknownFrom ? [] : null);
       return;
     }
-    const id = ++req.current;
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ q: parsed.text });
@@ -130,7 +136,11 @@ export function SearchModal({ channelId, onClose }: { channelId?: string; onClos
       </div>
       {error && <div className="form-error">{error}</div>}
       {results === null && !loading && <p className="muted search-hint">Type to search. Try from:name to only see someone's messages.</p>}
-      {results?.length === 0 && !loading && <p className="muted search-hint">No messages match "{debounced}".</p>}
+      {results?.length === 0 && !loading && (
+        <p className="muted search-hint">
+          {parsed.unknownFrom ? `Nobody here is called "${parsed.unknownFrom}".` : `No messages match "${debounced}".`}
+        </p>
+      )}
       <div className="search-results">
         {results?.map((m) => {
           const ch = s.channels[m.channelId];

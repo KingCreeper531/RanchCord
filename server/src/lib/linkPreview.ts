@@ -36,7 +36,9 @@ const UA = 'Mozilla/5.0 (compatible; RanchCordBot/1.0; +link previews)';
 /* ---------------- only public addresses ---------------- */
 
 function ipv4Blocked(ip: string): boolean {
-  const [a, b] = ip.split('.').map(Number);
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts;
   return (
     a === 0 ||
     a === 10 ||
@@ -51,23 +53,64 @@ function ipv4Blocked(ip: string): boolean {
   );
 }
 
+/** The 16 bytes of an IPv6 address, or null. Understands "::" and a dotted IPv4 ending (::ffff:1.2.3.4). */
+function ipv6Bytes(ip: string): number[] | null {
+  let s = ip.toLowerCase();
+  const zone = s.indexOf('%');
+  if (zone !== -1) s = s.slice(0, zone);
+  let v4: number[] = [];
+  const lastColon = s.lastIndexOf(':');
+  const ending = s.slice(lastColon + 1);
+  if (ending.includes('.')) {
+    if (!net.isIPv4(ending)) return null;
+    v4 = ending.split('.').map(Number);
+    s = `${s.slice(0, lastColon + 1)}0:0`;
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const groupsOf = (part: string) => (part ? part.split(':') : []);
+  const head = groupsOf(halves[0]);
+  const tail = halves.length === 2 ? groupsOf(halves[1]) : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill('0'), ...tail];
+  const bytes: number[] = [];
+  for (const g of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+    const v = parseInt(g, 16);
+    bytes.push(v >> 8, v & 255);
+  }
+  if (v4.length) bytes.splice(12, 4, ...v4);
+  return bytes.length === 16 ? bytes : null;
+}
+
+function ipv6Blocked(ip: string): boolean {
+  const b = ipv6Bytes(ip);
+  if (!b) return true;
+  const zero = (from: number, to: number) => b.slice(from, to).every((x) => x === 0);
+  // Addresses that carry an IPv4 address inside (::ffff:127.0.0.1 is just 127.0.0.1) are judged by it.
+  if (zero(0, 10) && b[10] === 0xff && b[11] === 0xff) return ipv4Blocked(b.slice(12).join('.'));
+  if (zero(0, 12)) return true; // ::, ::1 and the old ::1.2.3.4 form
+  const g0 = (b[0] << 8) | b[1];
+  const g1 = (b[2] << 8) | b[3];
+  return (
+    (zero(0, 8) && b[8] === 0xff && b[9] === 0xff) || // ::ffff:0:1.2.3.4
+    (b[0] & 0xfe) === 0xfc || // unique local, fc00::/7 (Tailscale uses fd7a:)
+    (g0 & 0xffc0) === 0xfe80 || // link-local
+    (g0 & 0xffc0) === 0xfec0 || // old site-local
+    b[0] === 0xff || // multicast
+    (g0 === 0x0064 && g1 === 0xff9b) || // NAT64, which reaches IPv4 addresses
+    g0 === 0x2002 || // 6to4, which carries an IPv4 address
+    (g0 === 0x2001 && g1 === 0) || // Teredo
+    (g0 === 0x2001 && g1 === 0x0db8) || // documentation
+    (g0 === 0x0100 && zero(2, 8)) // discard
+  );
+}
+
 function ipBlocked(ip: string): boolean {
   if (net.isIPv4(ip)) return ipv4Blocked(ip);
-  const v6 = ip.toLowerCase();
-  if (v6.startsWith('::ffff:')) return ipv4Blocked(v6.slice(7));
-  return (
-    v6 === '::' ||
-    v6 === '::1' ||
-    v6.startsWith('fc') ||
-    v6.startsWith('fd') || // unique local (Tailscale uses fd7a:)
-    v6.startsWith('fe8') ||
-    v6.startsWith('fe9') ||
-    v6.startsWith('fea') ||
-    v6.startsWith('feb') ||
-    v6.startsWith('ff') ||
-    v6.startsWith('64:ff9b') ||
-    v6.startsWith('2001:db8')
-  );
+  if (net.isIPv6(ip)) return ipv6Blocked(ip);
+  return true;
 }
 
 /** DNS lookup that refuses private addresses, used for the actual connection. */
@@ -90,7 +133,9 @@ function allowedUrl(raw: string): URL | null {
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
     if (u.username || u.password) return null;
     if (u.port && u.port !== '80' && u.port !== '443') return null;
-    if (net.isIP(u.hostname.replace(/^\[|\]$/g, '')) && ipBlocked(u.hostname.replace(/^\[|\]$/g, ''))) return null;
+    // A literal IP address skips the DNS lookup (and safeLookup), so it's checked right here.
+    const host = u.hostname.replace(/^\[|\]$/g, '');
+    if (net.isIP(host) && ipBlocked(host)) return null;
     if (/^(localhost|.*\.localhost|.*\.local|.*\.internal|.*\.lan|.*\.home|.*\.home\.arpa|.*\.ts\.net)$/i.test(u.hostname)) return null;
     return u;
   } catch {
@@ -192,19 +237,76 @@ function clean(s: string | undefined | null, max: number): string | null {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
-/** Every <meta> tag's property/name and content, lowercased keys. */
-function metaTags(html: string) {
-  const head = html.slice(0, MAX_BYTES).split(/<\/head>/i)[0];
-  const out = new Map<string, string>();
-  for (const tag of head.match(/<meta\b[^>]*>/gi) ?? []) {
-    const attr = (name: string) => new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
-    const key = attr('property') ?? attr('name') ?? attr('itemprop');
-    const value = attr('content');
-    if (!key || !value) continue;
-    const k = (key[2] ?? key[3] ?? key[4] ?? '').toLowerCase();
-    if (k && !out.has(k)) out.set(k, value[2] ?? value[3] ?? value[4] ?? '');
+/** Longest tag or title read; anything past it is cut off. */
+const MAX_TAG = 8192;
+
+const isSpace = (c: string) => c === ' ' || c === '\n' || c === '\t' || c === '\r' || c === '\f';
+
+/** A tag's attributes (names lowercased). Reads each character once, so odd pages can't slow it down. */
+function tagAttributes(tag: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  const n = tag.length;
+  let i = 1;
+  while (i < n && !isSpace(tag[i]) && tag[i] !== '/' && tag[i] !== '>') i++; // the tag name
+  while (i < n) {
+    while (i < n && (isSpace(tag[i]) || tag[i] === '/')) i++;
+    if (i >= n || tag[i] === '>') break;
+    const nameStart = i;
+    while (i < n && !isSpace(tag[i]) && tag[i] !== '=' && tag[i] !== '/' && tag[i] !== '>') i++;
+    const name = tag.slice(nameStart, i).toLowerCase();
+    while (i < n && isSpace(tag[i])) i++;
+    let value = '';
+    if (tag[i] === '=') {
+      i++;
+      while (i < n && isSpace(tag[i])) i++;
+      const quote = tag[i];
+      if (quote === '"' || quote === "'") {
+        const end = tag.indexOf(quote, i + 1);
+        const stop = end === -1 ? n : end;
+        value = tag.slice(i + 1, stop);
+        i = stop + 1;
+      } else {
+        const start = i;
+        while (i < n && !isSpace(tag[i]) && tag[i] !== '>') i++;
+        value = tag.slice(start, i);
+      }
+    }
+    if (name && !attrs.has(name)) attrs.set(name, value);
   }
-  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(head)?.[1];
+  return attrs;
+}
+
+/**
+ * Every <meta> tag's property/name and content (lowercased keys), and the <title>.
+ * Only simple searches that move forward, so the time it takes grows evenly with the page size.
+ */
+function metaTags(html: string) {
+  const page = html.slice(0, MAX_BYTES);
+  const headEnd = page.search(/<\/head[\s>]/i);
+  const end = headEnd === -1 ? page.length : headEnd;
+  const out = new Map<string, string>();
+  const find = /<meta[\s/>]/gi;
+  for (let m = find.exec(page); m && m.index < end; m = find.exec(page)) {
+    const close = page.indexOf('>', m.index + 5);
+    if (close === -1) break;
+    find.lastIndex = close + 1;
+    const attrs = tagAttributes(page.slice(m.index, Math.min(close + 1, m.index + MAX_TAG)));
+    const key = attrs.get('property') || attrs.get('name') || attrs.get('itemprop');
+    const value = attrs.get('content');
+    if (!key || value === undefined) continue;
+    const k = key.toLowerCase();
+    if (!out.has(k)) out.set(k, value);
+  }
+  let title: string | undefined;
+  const open = page.slice(0, end).search(/<title[\s>]/i);
+  if (open !== -1) {
+    const start = page.indexOf('>', open);
+    if (start !== -1) {
+      const window = page.slice(start + 1, start + 1 + MAX_TAG);
+      const stop = window.search(/<\/title/i);
+      if (stop !== -1) title = window.slice(0, stop);
+    }
+  }
   return { meta: out, title };
 }
 

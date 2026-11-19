@@ -25,10 +25,12 @@ const GroupIcon = memo(function GroupIcon({ groupId }: { groupId: string }) {
   const active = useUi((s) => s.route.kind === 'group' && s.route.groupId === groupId);
   if (!group) return null;
   const open = () => {
+    // Phones: tapping the group you're in goes to its chat; another group shows its channels first, like Discord.
+    if (active) return ui.setMobilePane('main');
     const last = useUi.getState().prefs.lastChannelByGroup[groupId];
     const s = useData.getState();
     const valid = last && s.channels[last] ? last : group.channelIds.find((id) => s.channels[id]?.type === 'text') ?? null;
-    ui.navigate({ kind: 'group', groupId, channelId: valid });
+    ui.navigate({ kind: 'group', groupId, channelId: valid }, { openMain: false });
   };
   return (
     <div className="rail-item">
@@ -109,7 +111,7 @@ export function Rail() {
             className={`rail-btn rail-home${homeActive ? ' is-active' : ''}`}
             onClick={() => {
               const r = useUi.getState().route;
-              if (r.kind === 'group') ui.navigate({ kind: 'friends' });
+              if (r.kind === 'group') ui.navigate({ kind: 'friends' }, { openMain: false });
               else ui.setMobilePane('main');
             }}
             aria-label="Home"

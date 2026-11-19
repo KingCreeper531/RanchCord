@@ -462,6 +462,19 @@ try {
   ok(e.status === 400, 'link previews need a real link');
 }
 
+ok((await api('GET', '/api/link-preview?url=' + encodeURIComponent('http://[::ffff:127.0.0.1]/'), a.token)).preview === null, 'link previews refuse disguised local addresses');
+
+// someone who's blocked can't pin in the old DM (each pin would bump it back up)
+const dmPinMsg = await api('POST', `/api/channels/${dm.id}/messages`, a.token, { content: 'pin me maybe' });
+await api('PUT', `/api/relationships/${a.user.id}`, b.token, { type: 'block' });
+try {
+  await api('PUT', `/api/channels/${dm.id}/pins/${dmPinMsg.id}`, a.token);
+  ok(false, "blocked people can't pin in the DM");
+} catch (e) {
+  ok(e.status === 403, "blocked people can't pin in the DM");
+}
+await api('DELETE', `/api/relationships/${a.user.id}`, b.token);
+
 // cleanup
 await api('DELETE', `/api/groups/${g.id}`, a.token);
 ok(await waitFor(B.events, 'group:delete', (p) => p.id === g.id), 'group deletion broadcast');

@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useMemo, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Check, Copy } from '@phosphor-icons/react';
 import { EMOJI_SOURCE, shortcodeFor } from './emoji';
 import { fileUrl, publicOrigin } from './server';
@@ -261,12 +261,40 @@ function relative(ms: number) {
   return rtf.format(Math.round(diff), 'second');
 }
 
-/** A <t:...> timestamp, in the reader's own time zone. */
-function TimeStamp({ unix, style }: { unix: number; style: string }) {
+/** How a <t:...> timestamp reads in a given style (null when the number isn't a real date). */
+function timeText(unix: number, style: string): string | null {
   const ms = unix * 1000;
   const date = new Date(ms);
-  if (Number.isNaN(date.getTime())) return <>{`<t:${unix}>`}</>;
-  const text = style === 'R' ? relative(ms) : new Intl.DateTimeFormat(undefined, TIME_STYLES[style] ?? TIME_STYLES.f).format(date);
+  if (Number.isNaN(date.getTime())) return null;
+  return style === 'R' ? relative(ms) : new Intl.DateTimeFormat(undefined, TIME_STYLES[style] ?? TIME_STYLES.f).format(date);
+}
+
+/* "in 5 minutes" style timestamps tick along: one shared timer re-draws them every 30 seconds. */
+const tickers = new Set<() => void>();
+let tickTimer: number | undefined;
+function useTicking(on: boolean) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const fn = () => setTick((n) => n + 1);
+    tickers.add(fn);
+    tickTimer ??= window.setInterval(() => tickers.forEach((f) => f()), 30_000);
+    return () => {
+      tickers.delete(fn);
+      if (!tickers.size) {
+        clearInterval(tickTimer);
+        tickTimer = undefined;
+      }
+    };
+  }, [on]);
+}
+
+/** A <t:...> timestamp, in the reader's own time zone. */
+function TimeStamp({ unix, style }: { unix: number; style: string }) {
+  useTicking(style === 'R');
+  const date = new Date(unix * 1000);
+  const text = timeText(unix, style);
+  if (text === null) return <>{`<t:${unix}>`}</>;
   return (
     <time className="md-time" dateTime={date.toISOString()} title={new Intl.DateTimeFormat(undefined, TIME_STYLES.F).format(date)}>
       {text}
@@ -443,7 +471,7 @@ export function plainPreview(content: string, users: Record<string, { displayNam
     .replace(new RegExp(`<@(${ID})>`, 'g'), (_, id: string) => `@${users[id]?.displayName ?? 'unknown'}`)
     .replace(new RegExp(`<@&(${ID})>`, 'g'), '@role')
     .replace(new RegExp(`<a?:([a-zA-Z0-9_]{2,32}):(${ID})>`, 'g'), (_, name: string, id: string) => `:${emojis[id]?.name ?? name}:`)
-    .replace(/<t:(-?\d{1,13})(?::[tTdDfFR])?>/g, (_, s: string) => new Date(Number(s) * 1000).toLocaleString())
+    .replace(/<t:(-?\d{1,13})(?::([tTdDfFR]))?>/g, (raw: string, s: string, style?: string) => timeText(Number(s), style ?? 'f') ?? raw)
     .replace(/```[\s\S]*?```/g, '[code]')
     .replace(/\|\|([\s\S]+?)\|\|/g, '▮▮▮')
     .replace(/[*_~`]/g, '')

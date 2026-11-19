@@ -189,7 +189,10 @@ export function MessageList({ channelId }: { channelId: string }) {
     if (!jumpTo || jumpTo.channelId !== channelId) return;
     let cancelled = false;
     (async () => {
-      for (let i = 0; i < 25 && !cancelled; i++) {
+      // Give up after a while (or very far back) rather than loading forever.
+      const giveUp = Date.now() + 25_000;
+      let pages = 0;
+      while (!cancelled && Date.now() < giveUp) {
         const box = scroller.current;
         const el = box?.querySelector<HTMLElement>(`[data-mid="${jumpTo.messageId}"]`);
         if (box && el) {
@@ -202,8 +205,15 @@ export function MessageList({ channelId }: { channelId: string }) {
           return;
         }
         const c = useData.getState().messages[channelId];
-        if (!c?.hasMore) break;
+        // The chat may still be opening (its first messages are on their way): wait for them first.
+        if (!c || !c.loaded || c.loading) {
+          if (c?.error) break;
+          await new Promise((r) => setTimeout(r, 120));
+          continue;
+        }
+        if (!c.hasMore || pages >= 400) break;
         atBottom.current = false;
+        pages++;
         await loadOlder(channelId);
         await new Promise((r) => requestAnimationFrame(r));
       }

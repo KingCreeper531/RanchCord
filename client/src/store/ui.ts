@@ -147,6 +147,12 @@ export function setHistoryWriter(writer: HistoryWriter) {
   writeHistory = writer;
 }
 
+/** Shallow comparison of two dialogs' props. */
+function sameProps(a: Record<string, unknown>, b: Record<string, unknown>) {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => Object.is(a[k], b[k]));
+}
+
 export const ui = {
   navigate(route: Route, opts: { replace?: boolean; openMain?: boolean } = {}) {
     const hash = routeToHash(route);
@@ -164,6 +170,9 @@ export const ui = {
   },
 
   openModal(type: string, props: Record<string, unknown> = {}) {
+    // The same dialog twice in a row (a long press that fires twice, a double tap) only opens once.
+    const top = useUi.getState().modals.at(-1);
+    if (top && top.type === type && sameProps(top.props, props)) return top.id;
     const id = nextStamp();
     set((s) => ({ modals: [...s.modals, { id, type, props }], popover: null }));
     return id;

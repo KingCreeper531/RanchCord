@@ -467,11 +467,17 @@ export default async function channelRoutes(app: FastifyInstance) {
 
   const MAX_PINS = 50;
 
-  /** In DMs either person can pin; in groups it takes Manage Messages. */
+  /** In DMs either person can pin (unless one blocked the other); in groups it takes Manage Messages. */
   function requirePinner(userId: string, channelId: string) {
     const { channel, member } = requireChannel(userId, channelId);
     if (channel.type === 'voice') throw badRequest("Voice channels don't have messages to pin");
-    if (member) requirePerm(member, PERM.MANAGE_MESSAGES, 'You need the Manage Messages permission to pin');
+    if (member) {
+      if (isTimedOut(member)) throw forbidden(TIMED_OUT);
+      requirePerm(member, PERM.MANAGE_MESSAGES, 'You need the Manage Messages permission to pin');
+    } else if (channel.type === 'dm') {
+      const other = dmRecipientId(channel.id, userId);
+      if (other && isBlockedEither(userId, other)) throw forbidden("You can't pin messages in this chat");
+    }
     return channel;
   }
 
