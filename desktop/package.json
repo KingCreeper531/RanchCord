@@ -1,7 +1,7 @@
 {
   "name": "ranchcord-desktop",
   "productName": "RanchCord",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "RanchCord for Windows (Rust + WebView2)",
   "private": true,
   "license": "MIT",

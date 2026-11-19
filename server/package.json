@@ -1,6 +1,6 @@
 {
   "name": "ranchcord-server",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "private": true,
   "description": "RanchCord chat server: accounts, friends, DMs, groups, uploads, realtime and call signaling",
   "type": "module",
