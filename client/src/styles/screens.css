@@ -457,6 +457,8 @@
 
 .profile-avatar {
   position: absolute;
+  /* Above the card body, which gets its own layer when a profile theme blurs it. */
+  z-index: 2;
   top: 62px;
   left: 16px;
   padding: 5px;
@@ -472,6 +474,7 @@
 
 .profile-top-actions {
   position: absolute;
+  z-index: 2;
   top: 116px;
   right: 12px;
   display: flex;
