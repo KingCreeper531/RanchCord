@@ -6,6 +6,7 @@ import { call } from '../../calls/manager';
 import { askToNukeDm, sendMessage } from '../../lib/actions';
 import { useBackLayer } from '../../lib/back';
 import { formatFull } from '../../lib/format';
+import { prefetchTrending } from '../../lib/klipy';
 import { isMobileDevice } from '../../lib/platform';
 import { EmojiText } from '../../lib/twemoji';
 import { useCall } from '../../store/call';
@@ -155,6 +156,8 @@ function DmCallBar({ channelId }: { channelId: string }) {
   );
 }
 
+let gifsWarmed = false;
+
 export function ChatView({ channelId }: { channelId: string }) {
   const channel = useData((s) => s.channels[channelId]);
   const recipient = useData((s) => dmRecipient(s, channelId));
@@ -178,6 +181,15 @@ export function ChatView({ channelId }: { channelId: string }) {
 
   useEffect(() => setPicker(null), [channelId]);
   useBackLayer(picker !== null, () => setPicker(null));
+
+  // Load trending GIFs in the background once, so the GIF tab is ready the moment it's opened.
+  useEffect(() => {
+    const s = useData.getState();
+    const klipy = s.instance?.klipy;
+    if (gifsWarmed || !klipy || !s.me) return;
+    gifsWarmed = true;
+    prefetchTrending(klipy.key, s.me.id, klipy.contentFilter);
+  }, []);
 
   if (!channel) return <div className="chat" />;
   const placeholder = channel.type === 'dm' ? `Message @${recipient?.displayName ?? 'someone'}` : `Message #${channel.name}`;

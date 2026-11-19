@@ -44,6 +44,10 @@ function locale() {
   return (region ?? 'US').toLowerCase();
 }
 
+/** Recent results, so searching the same thing again (or going back) is instant. */
+const pageCache = new Map<string, { at: number; page: KlipyPage }>();
+const PAGE_TTL = 10 * 60 * 1000;
+
 export async function klipyList(
   key: string,
   kind: KlipyKind,
@@ -57,13 +61,24 @@ export async function klipyList(
     content_filter: opts.contentFilter,
   });
   const endpoint = opts.query ? 'search' : 'trending';
-  if (opts.query) params.set('q', opts.query);
-  const res = await fetch(`${BASE}/${encodeURIComponent(key)}/${kind}/${endpoint}?${params}`, { signal: opts.signal });
+  if (opts.query) params.set('q', opts.query.toLowerCase());
+  const url = `${BASE}/${encodeURIComponent(key)}/${kind}/${endpoint}?${params}`;
+  const hit = pageCache.get(url);
+  if (hit && Date.now() - hit.at < PAGE_TTL) return hit.page;
+  const res = await fetch(url, { signal: opts.signal });
   if (res.status === 429) throw new Error('KLIPY rate limit reached. Try again in a bit.');
   if (!res.ok) throw new Error(`KLIPY returned an error (${res.status})`);
   const json = (await res.json()) as { result: boolean; data?: { data?: KlipyItem[]; has_next?: boolean; current_page?: number } };
   const items = (json.data?.data ?? []).filter((i) => i && i.file);
-  return { items, hasNext: Boolean(json.data?.has_next), page: json.data?.current_page ?? opts.page ?? 1 };
+  const page = { items, hasNext: Boolean(json.data?.has_next), page: json.data?.current_page ?? opts.page ?? 1 };
+  pageCache.set(url, { at: Date.now(), page });
+  if (pageCache.size > 60) pageCache.delete(pageCache.keys().next().value!);
+  return page;
+}
+
+/** Warms up trending GIFs as soon as the app starts, so the GIF tab opens instantly. */
+export function prefetchTrending(key: string, customerId: string, contentFilter: string) {
+  void klipyList(key, 'gifs', { customerId, contentFilter }).catch(() => {});
 }
 
 const categoryCache = new Map<string, KlipyCategory[]>();

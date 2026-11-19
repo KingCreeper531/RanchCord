@@ -20,18 +20,48 @@ interface TileMedia {
   height: number;
 }
 
-function Tile({ media, fav, onPick, onFav }: { media: TileMedia; fav: boolean; onPick: () => void; onFav: () => void }) {
+/** True once the element is on (or close to) the screen. */
+function useNearScreen(ref: React.RefObject<HTMLElement | null>) {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setNear(e.isIntersecting), { rootMargin: '250px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return near;
+}
+
+function Tile({ media, fav, onPick, onFav, eager }: { media: TileMedia; fav: boolean; onPick: () => void; onFav: () => void; eager?: boolean }) {
   const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  // GIFs only download once they're about to be seen, and pause when scrolled away. Loading all
+  // 30 at once made searching slow, especially on phones.
+  const near = useNearScreen(ref);
+  const [started, setStarted] = useState(Boolean(eager));
+  useEffect(() => {
+    if (near) setStarted(true);
+    const v = video.current;
+    if (!v) return;
+    if (near) void v.play().catch(() => {});
+    else v.pause();
+  }, [near]);
   return (
     <div className={`kp-tile-wrap${fav ? ' is-fav' : ''}`}>
       <button
+        ref={ref}
         className={`kp-tile${loaded ? ' is-loaded' : ''}`}
         style={{ aspectRatio: `${media.width} / ${media.height}`, backgroundImage: media.blur && !loaded ? `url(${media.blur})` : undefined }}
         onClick={onPick}
         title={media.title}
       >
         {media.video ? (
-          <video src={media.video} autoPlay loop muted playsInline onLoadedData={() => setLoaded(true)} />
+          started && <video ref={video} src={media.video} autoPlay loop muted playsInline preload="auto" onLoadedData={() => setLoaded(true)} />
         ) : (
           media.image && <img src={media.image} alt={media.title} loading="lazy" onLoad={() => setLoaded(true)} draggable={false} />
         )}
@@ -82,7 +112,8 @@ function Masonry({ tiles, columns }: { tiles: { media: TileMedia; fav: boolean; 
       {cols.map((col, i) => (
         <div key={i} className="kp-col">
           {col.map((t) => (
-            <Tile key={t.media.key} {...t} />
+            // The first few start right away; the rest wait until they scroll near.
+            <Tile key={t.media.key} {...t} eager={tiles.indexOf(t) < 8} />
           ))}
         </div>
       ))}
@@ -125,7 +156,7 @@ export function KlipyPicker({ kind, onPick }: { kind: KlipyKind; onPick: (embed:
   }, [kind]);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 320);
+    const t = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(t);
   }, [query]);
 
